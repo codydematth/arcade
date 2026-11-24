@@ -1,36 +1,53 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Almost Fair
 
-## Getting Started
+Standalone ragebait arcade for `games.matthiasamire.com`.
 
-First, run the development server:
+Totally fair games. We swear.
+
+## Stack
+
+- Next.js 16 + React 19 + TypeScript
+- Tailwind CSS 4
+- Canvas 2D game engine (no Phaser)
+- Web Audio SFX (no sound asset pack)
+
+## Scripts
 
 ```bash
-npm run dev
-# or
+yarn
 yarn dev
-# or
-pnpm dev
-# or
-bun dev
+yarn lint
+yarn build
+yarn start
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+## Games
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+| Game | Status | Path |
+|------|--------|------|
+| Almost There | Live | `/almost-there` |
+| Don't Blink | Soon | — |
+| One More Second | Soon | — |
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+## Almost There (v1 feel)
 
-## Learn More
+- One-button auto-runner (tap / space)
+- Dynamic seeded routes — **every fail loads a new jump path**
+- **$ currency** counts up while you run; wipe to **$0** on fail (with roast)
+- **Slow → fast** speed ramp as you clear more platforms
+- King / Queen mascot select (saved in localStorage)
+- Fake / vanish / crumble platforms
+- SFX (`M`) + original chiptune music (`N`) — music off by default
+- Endless procedural roast copy (shuffle bags — no external insult API)
+- Silent locale detect (IP/country): **Nigeria → Pidgin + ₦**, else English + `$`
+- Roast banner + **screenshot share** (clipboard image when allowed + PNG download)
 
-To learn more about Next.js, take a look at the following resources:
+## Deploy (`games.matthiasamire.com`)
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+1. Create a Vercel project from this folder.
+2. Add domain `games.matthiasamire.com`.
+3. Point DNS `games` CNAME to Vercel.
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+## Creator posting tips
 
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+See [CONTENT.md](./CONTENT.md) — keep that advice out of the player UI.
