@@ -1,10 +1,13 @@
-import Link from "next/link";
 import { ArcadeShell } from "@/components/arcade-shell";
+import { GameCard } from "@/components/game-card";
 import { ARCADE_TAGLINE, GAMES } from "@/lib/games";
+import Link from "next/link";
 
 export default function HomePage() {
   const live = GAMES.filter((g) => g.status === "live");
   const soon = GAMES.filter((g) => g.status === "soon");
+  const featured = GAMES.find((g) => g.slug === "almost-there") ?? live[0];
+  const rest = GAMES.filter((g) => g.slug !== featured?.slug);
 
   return (
     <ArcadeShell>
@@ -58,56 +61,23 @@ export default function HomePage() {
           </div>
 
           <div className="grid gap-4">
-            {GAMES.map((game, index) => {
-              const inner = (
-                <>
-                  <div className="flex items-start justify-between gap-4">
-                    <div>
-                      <p className="text-xs uppercase tracking-[0.2em] text-muted">
-                        0{index + 1}
-                      </p>
-                      <h3 className="mt-2 font-[family-name:var(--font-display)] text-2xl text-ink sm:text-3xl">
-                        {game.title}
-                      </h3>
-                      <p className="mt-2 max-w-xl text-sm text-muted">
-                        {game.tagline}
-                      </p>
-                    </div>
-                    <span
-                      className={
-                        game.status === "live"
-                          ? "shrink-0 border border-fair/40 bg-fair/10 px-2 py-1 text-[10px] uppercase tracking-[0.18em] text-fair"
-                          : "shrink-0 border border-line px-2 py-1 text-[10px] uppercase tracking-[0.18em] text-muted"
-                      }
-                    >
-                      {game.status === "live" ? "Live" : "Soon"}
-                    </span>
-                  </div>
-                  <p className="mt-5 text-xs text-accent-soft">{game.clipHook}</p>
-                </>
-              );
+            {featured ? (
+              <GameCard
+                game={featured}
+                index={GAMES.findIndex((g) => g.slug === featured.slug)}
+                featured
+              />
+            ) : null}
 
-              if (game.status === "live" && game.href) {
-                return (
-                  <Link
-                    key={game.slug}
-                    href={game.href}
-                    className="block border border-line bg-bg-elevated/50 p-5 transition hover:border-accent/50 hover:bg-bg-elevated sm:p-6"
-                  >
-                    {inner}
-                  </Link>
-                );
-              }
-
-              return (
-                <div
+            <div className="grid gap-4 sm:grid-cols-2">
+              {rest.map((game) => (
+                <GameCard
                   key={game.slug}
-                  className="border border-dashed border-line/80 bg-bg-elevated/20 p-5 opacity-80 sm:p-6"
-                >
-                  {inner}
-                </div>
-              );
-            })}
+                  game={game}
+                  index={GAMES.findIndex((g) => g.slug === game.slug)}
+                />
+              ))}
+            </div>
           </div>
         </section>
       </main>
