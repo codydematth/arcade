@@ -14,8 +14,10 @@ export const ARCADE_TAGLINE = 'Totally fair games. We swear.';
 export const ARCADE_URL = 'https://games.matthiasamire.com';
 export const ARCADE_DESCRIPTION =
   'Lightweight ragebait web games made for short clips. Play Almost There, film the near-miss, share the roast — games.matthiasamire.com.';
-/** Update if your Buy Me a Coffee handle differs. */
+/** Global USD support via GitHub Sponsors. */
 export const BUY_ME_A_COFFEE_URL = 'https://github.com/sponsors/codydematth';
+/** Naira tips from ₦500 via Paystack. */
+export const PAYSTACK_TIP_URL = 'https://paystack.shop/pay/f1r8zncfcb';
 export const CREATOR_URL = 'https://matthiasamire.com';
 export const CREATOR_NAME = 'Matthias Amire';
 export const GITHUB_URL = 'https://github.com/codydematth/arcade';

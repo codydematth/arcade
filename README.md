@@ -42,4 +42,8 @@ yarn start
 - Silent locale detect (IP/country): **Nigeria → Pidgin + ₦**, else English + `$`
 - Roast banner + **screenshot share** (clipboard image when allowed + PNG download)
 
+## License
+
+[MIT](./LICENSE) © 2026 Matthias Amire
+
 ## Deploy (`games.matthiasamire.com`)
