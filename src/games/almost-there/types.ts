@@ -66,5 +66,12 @@ export type EngineSnapshot = {
   money: number;
   platformsCleared: number;
   speed: number;
+  onGround: boolean;
   result: RunResult | null;
+};
+
+export type EngineOptions = {
+  /** Card/shelf autopilot — quieter HUD, no loss streak writes. */
+  demo?: boolean;
+  seed?: number;
 };

@@ -1,8 +1,12 @@
+"use client";
+
 import Link from "next/link";
 import type { ReactNode } from "react";
-import type { ArcadeGame } from "@/lib/games";
 import { AlmostTherePreview } from "@/components/game-previews/almost-there-preview";
 import { SoonPreview } from "@/components/game-previews/soon-preview";
+import { todaysBetrayalLine } from "@/lib/daily-betrayal";
+import type { ArcadeGame } from "@/lib/games";
+import { playTeaserBlip, unlockTeaserAudio } from "@/lib/teaser-audio";
 
 type GameCardProps = {
   game: ArcadeGame;
@@ -41,14 +45,14 @@ function CardChrome({
       <div
         className={
           featured
-            ? "relative aspect-[16/9] w-full overflow-hidden border-b border-line bg-[#0b0f14] sm:aspect-[2/1]"
-            : "relative aspect-[16/10] w-full overflow-hidden border-b border-line bg-[#0b0f14]"
+            ? "relative aspect-[16/9] w-full overflow-hidden border-b border-line bg-[#070A12] sm:aspect-[2/1]"
+            : "relative aspect-[16/10] w-full overflow-hidden border-b border-line bg-[#070A12]"
         }
       >
         {preview}
         <div
           aria-hidden
-          className="pointer-events-none absolute inset-x-0 bottom-0 h-16 bg-gradient-to-t from-[#0b0f14]/90 to-transparent"
+          className="pointer-events-none absolute inset-x-0 bottom-0 h-16 bg-gradient-to-t from-[#070A12]/95 to-transparent"
         />
       </div>
       <div className={featured ? "p-5 sm:p-6" : "p-4 sm:p-5"}>
@@ -67,11 +71,16 @@ function CardChrome({
               {game.title}
             </h3>
             <p className="mt-1.5 text-sm text-muted">{game.tagline}</p>
+            {featured ? (
+              <p className="mt-2 text-[11px] uppercase tracking-[0.14em] text-accent">
+                {todaysBetrayalLine()}
+              </p>
+            ) : null}
           </div>
           <span
             className={
               game.status === "live"
-                ? "shrink-0 border border-fair/40 bg-fair/10 px-2 py-1 text-[10px] uppercase tracking-[0.18em] text-fair"
+                ? "shrink-0 border border-fair/50 bg-fair/10 px-2 py-1 text-[10px] uppercase tracking-[0.18em] text-fair"
                 : "shrink-0 border border-line px-2 py-1 text-[10px] uppercase tracking-[0.18em] text-muted"
             }
           >
@@ -87,14 +96,32 @@ function CardChrome({
 export function GameCard({ game, index, featured = false }: GameCardProps) {
   const preview = <PreviewFor game={game} />;
   const shellClass = featured
-    ? "group block overflow-hidden border border-line bg-bg-elevated/50 transition hover:border-accent/45 hover:bg-bg-elevated"
+    ? "group block overflow-hidden border border-line bg-bg-elevated transition hover:border-accent/60 hover:bg-[#1a2233]"
     : game.status === "live"
-      ? "group block overflow-hidden border border-line bg-bg-elevated/50 transition hover:border-accent/45 hover:bg-bg-elevated"
-      : "overflow-hidden border border-dashed border-line/80 bg-bg-elevated/20 opacity-90";
+      ? "group block overflow-hidden border border-line bg-bg-elevated transition hover:border-accent/60 hover:bg-[#1a2233]"
+      : "overflow-hidden border border-dashed border-line/70 bg-bg-elevated/40 opacity-90";
+
+  async function armTeaser() {
+    if (!featured) return;
+    await unlockTeaserAudio();
+    playTeaserBlip();
+  }
 
   if (game.status === "live" && game.href) {
     return (
-      <Link href={game.href} className={shellClass}>
+      <Link
+        href={game.href}
+        className={shellClass}
+        onMouseEnter={() => {
+          void armTeaser();
+        }}
+        onFocus={() => {
+          void armTeaser();
+        }}
+        onTouchStart={() => {
+          void armTeaser();
+        }}
+      >
         <CardChrome
           game={game}
           index={index}

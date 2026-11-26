@@ -282,7 +282,7 @@ export function AlmostThereGame() {
       >
         <canvas
           ref={canvasRef}
-          className="block h-full w-full rounded-sm border border-line bg-[#121821]"
+          className="block h-full w-full rounded-sm border border-line bg-[#0B0F19]"
         />
 
         <button

@@ -9,6 +9,7 @@ import {
 import { createSeed, generateRoute, nextRoute } from "@/games/almost-there/routes";
 import type {
   EngineEvent,
+  EngineOptions,
   EngineSnapshot,
   EngineStatus,
   FailReason,
@@ -17,6 +18,7 @@ import type {
   RunResult,
 } from "@/games/almost-there/types";
 import { formatCash, getLocale, zeroCash } from "@/lib/locale";
+import { getLossesToday, recordLossToday } from "@/lib/streak";
 
 type RuntimePlatform = PlatformDef & {
   opacity: number;
@@ -80,10 +82,16 @@ export type AlmostThereEngine = {
   destroy: () => void;
 };
 
-export function createAlmostThereEngine(): AlmostThereEngine {
+export function createAlmostThereEngine(
+  options: EngineOptions = {},
+): AlmostThereEngine {
+  const demo = Boolean(options.demo);
   let status: EngineStatus = "ready";
   let routeNumber = 1;
-  let route: RouteDef = generateRoute(createSeed(), routeNumber);
+  let route: RouteDef = generateRoute(
+    options.seed ?? createSeed(),
+    routeNumber,
+  );
   let money = 0;
   let platformsCleared = 0;
   let wipeFlash = 0;
@@ -96,6 +104,8 @@ export function createAlmostThereEngine(): AlmostThereEngine {
   let toast = "Tap to run. Jump is one button.";
   let toastUntil = 0;
   let shake = 0;
+  let lossesToday = 0;
+  let fairLie = 98;
   let coyoteUntil = 0;
   let jumpBufferedUntil = 0;
   let wasOnGround = false;
@@ -178,6 +188,7 @@ export function createAlmostThereEngine(): AlmostThereEngine {
       money: Math.floor(money),
       platformsCleared,
       speed: currentSpeed(),
+      onGround: player.onGround,
       result,
     };
   }
@@ -190,12 +201,18 @@ export function createAlmostThereEngine(): AlmostThereEngine {
     if (!won) {
       money = 0;
       wipeFlash = 1;
+      if (!demo) {
+        lossesToday = recordLossToday();
+      }
+      fairLie = 37;
       floatText(
         `${formatCash(peak)} → ${zeroCash()}`,
         player.x - 10,
         player.y - 28,
-        "#ff4d2e",
+        "#6366F1",
       );
+    } else {
+      fairLie = 98;
     }
     result = {
       won,
@@ -214,7 +231,7 @@ export function createAlmostThereEngine(): AlmostThereEngine {
     burst(
       player.x + player.w / 2,
       player.y + player.h / 2,
-      won ? "#3dff9a" : "#ff4d2e",
+      won ? "#10B981" : "#6366F1",
       won ? 18 : 22,
     );
     const pidgin = getLocale().dialect === "pidgin";
@@ -222,7 +239,7 @@ export function createAlmostThereEngine(): AlmostThereEngine {
       won ? "WHAT?!" : pidgin ? "NO MONEY!" : "BROKE!",
       player.x,
       player.y - 48,
-      won ? "#3dff9a" : "#ff4d2e",
+      won ? "#10B981" : "#6366F1",
     );
     emit(won ? "win" : "die");
   }
@@ -256,6 +273,8 @@ export function createAlmostThereEngine(): AlmostThereEngine {
     loadRoute(route);
     status = "playing";
     startedAt = performance.now();
+    lossesToday = getLossesToday();
+    fairLie = 98;
     toastUntil = startedAt + 2200;
     emit("start");
     // Start-tap should hop into the run, not stand still.
@@ -283,7 +302,7 @@ export function createAlmostThereEngine(): AlmostThereEngine {
     coyoteUntil = 0;
     jumpBufferedUntil = 0;
     emit("jump");
-    burst(player.x + player.w / 2, player.y + player.h, "#f3f0e8", 6);
+    burst(player.x + player.w / 2, player.y + player.h, "#F8FAFC", 6);
     return true;
   }
 
@@ -339,7 +358,7 @@ export function createAlmostThereEngine(): AlmostThereEngine {
         if (now >= p.crumbleAt) {
           p.crumbled = true;
           p.opacity = 0;
-          burst(p.x + p.w / 2, p.y, "#ffb347", 8);
+          burst(p.x + p.w / 2, p.y, "#818CF8", 8);
         } else {
           const left = p.crumbleAt - now;
           p.opacity =
@@ -376,7 +395,7 @@ export function createAlmostThereEngine(): AlmostThereEngine {
             `+${formatCash(MONEY_PER_PAD)}`,
             p.x + p.w * 0.2,
             p.y - 18,
-            "#3dff9a",
+            "#10B981",
           );
         }
 
@@ -400,7 +419,7 @@ export function createAlmostThereEngine(): AlmostThereEngine {
         ) {
           failReason = "fake";
           emit("fake");
-          floatText("FAKE", p.x + p.w / 2, p.y - 10, "#ff4d2e");
+          floatText("FAKE", p.x + p.w / 2, p.y - 10, "#6366F1");
         }
       }
     }
@@ -468,7 +487,7 @@ export function createAlmostThereEngine(): AlmostThereEngine {
 
     if (player.onGround && !wasOnGround) {
       emit("land");
-      burst(player.x + player.w / 2, player.y + player.h, "#3dff9a", 5);
+      burst(player.x + player.w / 2, player.y + player.h, "#10B981", 5);
       if (now <= jumpBufferedUntil) {
         tryJump();
       }
@@ -526,13 +545,13 @@ export function createAlmostThereEngine(): AlmostThereEngine {
 
     const grad = ctx.createLinearGradient(0, 0, 0, h);
     grad.addColorStop(0, "#1c2533");
-    grad.addColorStop(0.55, "#121821");
+    grad.addColorStop(0.55, "#0B0F19");
     grad.addColorStop(1, "#0b0f14");
     ctx.fillStyle = grad;
     ctx.fillRect(0, 0, w, h);
 
     // Moving grid for "dynamic" feel
-    ctx.strokeStyle = "rgba(243,240,232,0.04)";
+    ctx.strokeStyle = "rgba(248,250,252,0.04)";
     ctx.lineWidth = 1;
     const grid = 48;
     const offset = -((cameraX * 0.5) % grid);
@@ -543,7 +562,7 @@ export function createAlmostThereEngine(): AlmostThereEngine {
       ctx.stroke();
     }
 
-    ctx.fillStyle = "rgba(61, 255, 154, 0.06)";
+    ctx.fillStyle = "rgba(99, 102, 241, 0.06)";
     for (let i = 0; i < 8; i++) {
       const hx = ((i * 160 - cameraX * 0.25) % (w + 220)) - 60;
       const hy = h * 0.7 + Math.sin(bob + i) * 6;
@@ -562,13 +581,13 @@ export function createAlmostThereEngine(): AlmostThereEngine {
       ctx.globalAlpha = p.opacity;
 
       if (p.kind === "fake") {
-        ctx.fillStyle = "#3dff9a";
+        ctx.fillStyle = "#10B981";
       } else if (p.kind === "vanish") {
         ctx.fillStyle = "#7cf0c2";
       } else if (p.kind === "crumble") {
-        ctx.fillStyle = p.crumbleAt ? "#ff7a63" : "#ffb347";
+        ctx.fillStyle = p.crumbleAt ? "#818CF8" : "#818CF8";
       } else {
-        ctx.fillStyle = "#3dff9a";
+        ctx.fillStyle = "#10B981";
       }
       ctx.fillRect(a.x, a.y, pw, ph);
       ctx.fillStyle = "rgba(16, 19, 26, 0.28)";
@@ -577,9 +596,9 @@ export function createAlmostThereEngine(): AlmostThereEngine {
     }
 
     const goal = worldToScreen(route.goalX, route.goalY);
-    ctx.fillStyle = "#f3f0e8";
+    ctx.fillStyle = "#F8FAFC";
     ctx.fillRect(goal.x, goal.y, 6 * s, 90 * s);
-    ctx.fillStyle = "#ff4d2e";
+    ctx.fillStyle = "#6366F1";
     ctx.beginPath();
     ctx.moveTo(goal.x + 6 * s, goal.y + Math.sin(bob * 6) * 2);
     ctx.lineTo(goal.x + 52 * s, goal.y + 16 * s);
@@ -606,6 +625,17 @@ export function createAlmostThereEngine(): AlmostThereEngine {
     const pl = worldToScreen(player.x, player.y);
     const pw = player.w * s;
     const ph = player.h * s;
+    const mood =
+      status === "lost"
+        ? "rage"
+        : status === "won"
+          ? "smug"
+          : !player.onGround && player.vy > 400
+            ? "panic"
+            : !player.onGround
+              ? "idle"
+              : "smug";
+
     drawMascot({
       ctx,
       x: pl.x,
@@ -615,11 +645,12 @@ export function createAlmostThereEngine(): AlmostThereEngine {
       mascot,
       airborne: !player.onGround,
       facing: 1,
+      mood,
     });
 
     // Speed lines while airborne
     if (status === "playing" && !player.onGround) {
-      ctx.strokeStyle = "rgba(243,240,232,0.15)";
+      ctx.strokeStyle = "rgba(246,239,228,0.15)";
       for (let i = 0; i < 4; i++) {
         const y = pl.y + 6 + i * 8;
         ctx.beginPath();
@@ -629,44 +660,71 @@ export function createAlmostThereEngine(): AlmostThereEngine {
       }
     }
 
-    ctx.fillStyle = "rgba(243, 240, 232, 0.92)";
+    // Live fairness lie — drifts with progress, crashes on loss.
+    if (status === "playing") {
+      const target = Math.min(99, Math.round(72 + progress() * 26));
+      fairLie += (target - fairLie) * 0.08;
+    }
+
+    ctx.fillStyle = "rgba(246, 239, 228, 0.92)";
     ctx.font = `700 ${Math.round(13 * Math.max(1, s))}px system-ui, sans-serif`;
     ctx.fillText(route.name, 16, 28);
 
     const barW = Math.min(200, w - 160);
-    ctx.fillStyle = "rgba(243, 240, 232, 0.12)";
+    ctx.fillStyle = "rgba(246, 239, 228, 0.12)";
     ctx.fillRect(16, 40, barW, 8);
-    ctx.fillStyle = "#ff4d2e";
+    ctx.fillStyle = "#6366F1";
     ctx.fillRect(16, 40, barW * progress(), 8);
-    ctx.fillStyle = "#9aa3b5";
+    ctx.fillStyle = "#94A3B8";
     ctx.font = `600 ${Math.round(11 * Math.max(1, s))}px system-ui, sans-serif`;
     ctx.fillText(`${Math.round(progress() * 100)}%`, 16 + barW + 8, 48);
+
+    // Certified Fair™ gaslight strip
+    const fairW = Math.min(160, w * 0.38);
+    ctx.fillStyle = "rgba(246, 239, 228, 0.1)";
+    ctx.fillRect(16, 56, fairW, 5);
+    ctx.fillStyle = status === "lost" ? "#6366F1" : "#10B981";
+    ctx.fillRect(16, 56, fairW * (Math.max(8, fairLie) / 100), 5);
+    ctx.fillStyle = "#94A3B8";
+    ctx.font = `600 ${Math.round(9 * Math.max(1, s))}px system-ui, sans-serif`;
+    ctx.fillText(
+      `Fair™ ${Math.round(fairLie)}%`,
+      16 + fairW + 8,
+      61,
+    );
 
     // Currency HUD — counts up while running, reads ₦0/$0 after a wipe.
     const cashLabel = formatCash(money);
     const cashFont = `800 ${Math.round(22 * Math.max(1, s * 0.9))}px "IBM Plex Sans", "Segoe UI", system-ui, sans-serif`;
     ctx.font = cashFont;
-    ctx.fillStyle = wipeFlash > 0 ? "#ff4d2e" : "#3dff9a";
+    ctx.fillStyle = wipeFlash > 0 ? "#6366F1" : "#10B981";
     const cashX = w - 16 - ctx.measureText(cashLabel).width;
     ctx.fillText(cashLabel, cashX, 34);
     ctx.font = `600 ${Math.round(11 * Math.max(1, s))}px system-ui, sans-serif`;
-    ctx.fillStyle = "#9aa3b5";
-    ctx.fillText(
-      `${platformsCleared} pads · ${Math.round(currentSpeed())} spd`,
-      Math.max(16, cashX - 4),
-      52,
-    );
+    ctx.fillStyle = "#94A3B8";
+    const streakLabel =
+      lossesToday > 0
+        ? `${lossesToday} loss${lossesToday === 1 ? "" : "es"} today`
+        : `${platformsCleared} pads · ${Math.round(currentSpeed())} spd`;
+    ctx.fillText(streakLabel, Math.max(16, cashX - 4), 52);
+    if (lossesToday > 0) {
+      ctx.fillText(
+        `${platformsCleared} pads · ${Math.round(currentSpeed())} spd`,
+        Math.max(16, cashX - 4),
+        66,
+      );
+    }
 
-    if (status === "ready") {
-      ctx.fillStyle = "rgba(16, 19, 26, 0.45)";
+    if (status === "ready" && !demo) {
+      ctx.fillStyle = "rgba(7, 10, 18, 0.5)";
       ctx.fillRect(0, 0, w, h);
-      ctx.fillStyle = "#f3f0e8";
+      ctx.fillStyle = "#F8FAFC";
       ctx.font = `800 ${Math.round(30 * Math.max(1, s * 0.85))}px system-ui, sans-serif`;
       ctx.fillText("ALMOST THERE", 24, h * 0.38);
       ctx.font = `500 ${Math.round(15 * Math.max(1, s))}px system-ui, sans-serif`;
-      ctx.fillStyle = "#9aa3b5";
+      ctx.fillStyle = "#94A3B8";
       ctx.fillText("Tap / space — run & jump", 24, h * 0.38 + 34);
-      ctx.fillStyle = "#3dff9a";
+      ctx.fillStyle = "#10B981";
       ctx.fillText(
         mascot === "queen" ? "Queen mode engaged" : "King mode engaged",
         24,
@@ -674,14 +732,17 @@ export function createAlmostThereEngine(): AlmostThereEngine {
       );
     }
 
-    if (status === "playing" && nowSafe() < toastUntil) {
-      ctx.fillStyle = "rgba(16, 19, 26, 0.72)";
+    if (!demo && status === "playing" && nowSafe() < toastUntil) {
+      ctx.fillStyle = "rgba(7, 10, 18, 0.78)";
       ctx.fillRect(16, h - 68, Math.min(w - 32, 380), 40);
-      ctx.fillStyle = "#f3f0e8";
+      ctx.fillStyle = "#F8FAFC";
       ctx.font = `600 ${Math.round(13 * Math.max(1, s))}px system-ui, sans-serif`;
       ctx.fillText(toast, 28, h - 42);
     }
   }
+
+  // Warm boot streak for HUD before first run.
+  lossesToday = typeof window !== "undefined" ? getLossesToday() : 0;
 
   function nowSafe() {
     return performance.now();

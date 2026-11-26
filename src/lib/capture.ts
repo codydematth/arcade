@@ -1,15 +1,48 @@
 export type RoastCardInput = {
   gameCanvas: HTMLCanvasElement;
   eyebrow: string;
-  emoji: string;
   headline: string;
-  subline: string;
-  audience: string;
-  progress: string;
   moneyLine: string;
   mascotLabel: string;
-  drawMascot: (ctx: CanvasRenderingContext2D, x: number, y: number, size: number) => void;
+  drawMascot: (
+    ctx: CanvasRenderingContext2D,
+    x: number,
+    y: number,
+    size: number,
+  ) => void;
 };
+
+/** Shrink font until the string fits maxWidth (handles long Pidgin headlines). */
+function fitFont(
+  ctx: CanvasRenderingContext2D,
+  text: string,
+  maxWidth: number,
+  maxPx: number,
+  minPx: number,
+  weight: string,
+): number {
+  let size = maxPx;
+  while (size > minPx) {
+    ctx.font = `${weight} ${size}px system-ui, sans-serif`;
+    if (ctx.measureText(text).width <= maxWidth) return size;
+    size -= 2;
+  }
+  ctx.font = `${weight} ${minPx}px system-ui, sans-serif`;
+  return minPx;
+}
+
+function ellipsize(
+  ctx: CanvasRenderingContext2D,
+  text: string,
+  maxWidth: number,
+): string {
+  if (ctx.measureText(text).width <= maxWidth) return text;
+  let draw = text;
+  while (draw.length > 1 && ctx.measureText(`${draw}…`).width > maxWidth) {
+    draw = draw.slice(0, -1);
+  }
+  return `${draw}…`;
+}
 
 function wrapText(
   ctx: CanvasRenderingContext2D,
@@ -18,22 +51,36 @@ function wrapText(
   y: number,
   maxWidth: number,
   lineHeight: number,
+  maxLines = 3,
 ): number {
-  const words = text.split(" ");
+  const words = text.split(/\s+/).filter(Boolean);
+  const lines: string[] = [];
   let line = "";
-  let cursorY = y;
+
   for (const word of words) {
     const test = line ? `${line} ${word}` : word;
     if (ctx.measureText(test).width > maxWidth && line) {
-      ctx.fillText(line, x, cursorY);
+      lines.push(line);
       line = word;
-      cursorY += lineHeight;
+      if (lines.length === maxLines) {
+        line = "";
+        break;
+      }
     } else {
       line = test;
     }
   }
-  if (line) {
-    ctx.fillText(line, x, cursorY);
+  if (line && lines.length < maxLines) lines.push(line);
+
+  // If we overflowed maxLines, ellipsize the last kept line.
+  if (lines.length === maxLines && words.join(" ") !== lines.join(" ")) {
+    const last = lines[maxLines - 1] ?? "";
+    lines[maxLines - 1] = ellipsize(ctx, last, maxWidth);
+  }
+
+  let cursorY = y;
+  for (const row of lines) {
+    ctx.fillText(ellipsize(ctx, row, maxWidth), x, cursorY);
     cursorY += lineHeight;
   }
   return cursorY;
@@ -50,41 +97,49 @@ export async function renderRoastCard(input: RoastCardInput): Promise<Blob> {
     throw new Error("Could not create share canvas");
   }
 
-  // Background
   const bg = ctx.createLinearGradient(0, 0, width, height);
-  bg.addColorStop(0, "#1a1520");
-  bg.addColorStop(0.45, "#121821");
-  bg.addColorStop(1, "#0b0f14");
+  bg.addColorStop(0, "#101628");
+  bg.addColorStop(0.5, "#0B0F19");
+  bg.addColorStop(1, "#070A12");
   ctx.fillStyle = bg;
   ctx.fillRect(0, 0, width, height);
 
-  // Accent glows
-  ctx.fillStyle = "rgba(255, 77, 46, 0.22)";
+  ctx.fillStyle = "rgba(99, 102, 241, 0.2)";
   ctx.beginPath();
-  ctx.arc(180, 160, 220, 0, Math.PI * 2);
+  ctx.arc(160, 140, 200, 0, Math.PI * 2);
   ctx.fill();
-  ctx.fillStyle = "rgba(61, 255, 154, 0.12)";
+  ctx.fillStyle = "rgba(16, 185, 129, 0.1)";
   ctx.beginPath();
-  ctx.arc(900, 1100, 260, 0, Math.PI * 2);
+  ctx.arc(920, 1180, 240, 0, Math.PI * 2);
   ctx.fill();
 
-  // Game snapshot frame
+  // Brand row
+  ctx.fillStyle = "#10B981";
+  ctx.font = "700 28px system-ui, sans-serif";
+  ctx.fillText("ALMOST FAIR", 72, 70);
+  ctx.fillStyle = "#94A3B8";
+  ctx.font = "600 24px system-ui, sans-serif";
+  ctx.fillText(
+    input.mascotLabel,
+    width - 72 - ctx.measureText(input.mascotLabel).width,
+    70,
+  );
+
+  // Game frame — taller so the fail is the hero
   const frameX = 72;
-  const frameY = 120;
+  const frameY = 100;
   const frameW = width - 144;
-  const frameH = 520;
-  ctx.fillStyle = "#0b0f14";
+  const frameH = 720;
+  ctx.fillStyle = "#070A12";
   ctx.fillRect(frameX - 8, frameY - 8, frameW + 16, frameH + 16);
-  ctx.strokeStyle = "rgba(243,240,232,0.16)";
+  ctx.strokeStyle = "rgba(248,250,252,0.14)";
   ctx.lineWidth = 4;
   ctx.strokeRect(frameX - 8, frameY - 8, frameW + 16, frameH + 16);
 
   const src = input.gameCanvas;
-  const srcW = src.width;
-  const srcH = src.height;
-  const scale = Math.max(frameW / srcW, frameH / srcH);
-  const dw = srcW * scale;
-  const dh = srcH * scale;
+  const scale = Math.max(frameW / src.width, frameH / src.height);
+  const dw = src.width * scale;
+  const dh = src.height * scale;
   const dx = frameX + (frameW - dw) / 2;
   const dy = frameY + (frameH - dh) / 2;
   ctx.save();
@@ -94,61 +149,50 @@ export async function renderRoastCard(input: RoastCardInput): Promise<Blob> {
   ctx.drawImage(src, dx, dy, dw, dh);
   ctx.restore();
 
-  // Brand
-  ctx.fillStyle = "#3dff9a";
-  ctx.font = "700 28px system-ui, sans-serif";
-  ctx.fillText("ALMOST FAIR", 72, 70);
-  ctx.fillStyle = "#9aa3b5";
-  ctx.font = "600 24px system-ui, sans-serif";
-  ctx.fillText(input.mascotLabel, width - 72 - ctx.measureText(input.mascotLabel).width, 70);
+  // Lean roast strip
+  const panelY = 860;
+  const panelH = 400;
+  const padX = 110;
+  const textW = width - padX * 2;
+  ctx.fillStyle = "rgba(19, 25, 38, 0.96)";
+  ctx.fillRect(72, panelY, width - 144, panelH);
+  ctx.strokeStyle = "rgba(248,250,252,0.1)";
+  ctx.strokeRect(72, panelY, width - 144, panelH);
 
-  // Roast panel
-  const panelY = 680;
-  ctx.fillStyle = "rgba(18, 24, 33, 0.96)";
-  ctx.fillRect(72, panelY, width - 144, 560);
-  ctx.strokeStyle = "rgba(243,240,232,0.12)";
-  ctx.strokeRect(72, panelY, width - 144, 560);
+  ctx.fillStyle = "#818CF8";
+  ctx.font = "700 24px system-ui, sans-serif";
+  ctx.fillText(input.eyebrow.toUpperCase(), padX, panelY + 52);
 
-  ctx.fillStyle = "#3dff9a";
-  ctx.font = "700 26px system-ui, sans-serif";
-  ctx.fillText(input.eyebrow.toUpperCase(), 110, panelY + 58);
+  input.drawMascot(ctx, width - 220, panelY + 70, 120);
 
-  ctx.font = "120px system-ui, sans-serif";
-  ctx.fillText(input.emoji, 110, panelY + 180);
-
-  input.drawMascot(ctx, width - 250, panelY + 70, 150);
-
-  ctx.fillStyle = "#f3f0e8";
-  ctx.font = "800 64px system-ui, sans-serif";
-  const afterHeadline = wrapText(ctx, input.headline, 110, panelY + 250, width - 320, 72);
-
-  ctx.fillStyle = "rgba(243,240,232,0.88)";
-  ctx.font = "500 32px system-ui, sans-serif";
-  const afterSub = wrapText(ctx, input.subline, 110, afterHeadline + 18, width - 220, 42);
-
-  ctx.fillStyle = "#ff7a63";
-  ctx.font = "600 28px system-ui, sans-serif";
-  const afterAudience = wrapText(
+  const headlineSize = fitFont(
     ctx,
-    input.audience,
-    110,
-    afterSub + 16,
-    width - 220,
-    38,
+    input.headline,
+    textW - 140,
+    56,
+    32,
+    "800",
+  );
+  ctx.fillStyle = "#F8FAFC";
+  ctx.font = `800 ${headlineSize}px system-ui, sans-serif`;
+  const afterHeadline = wrapText(
+    ctx,
+    input.headline,
+    padX,
+    panelY + 120,
+    textW - 140,
+    headlineSize + 8,
+    2,
   );
 
-  ctx.fillStyle = "#ff7a63";
-  ctx.font = "800 30px system-ui, sans-serif";
-  ctx.fillText(input.moneyLine, 110, afterAudience + 22);
+  const moneySize = fitFont(ctx, input.moneyLine, textW, 36, 24, "800");
+  ctx.fillStyle = "#10B981";
+  ctx.font = `800 ${moneySize}px system-ui, sans-serif`;
+  wrapText(ctx, input.moneyLine, padX, afterHeadline + 28, textW, moneySize + 6, 2);
 
-  ctx.fillStyle = "#9aa3b5";
-  ctx.font = "600 24px system-ui, sans-serif";
-  ctx.fillText(input.progress, 110, afterAudience + 58);
-
-  // No UI buttons on the share image — only roast content + quiet brand mark.
-  ctx.fillStyle = "rgba(243,240,232,0.35)";
+  ctx.fillStyle = "rgba(248,250,252,0.35)";
   ctx.font = "700 22px system-ui, sans-serif";
-  ctx.fillText("almost fair", 110, panelY + 520);
+  ctx.fillText("games.matthiasamire.com", padX, panelY + panelH - 36);
 
   return await new Promise<Blob>((resolve, reject) => {
     canvas.toBlob((blob) => {
@@ -159,7 +203,11 @@ export async function renderRoastCard(input: RoastCardInput): Promise<Blob> {
 }
 
 export async function copyImageToClipboard(blob: Blob): Promise<boolean> {
-  if (typeof navigator === "undefined" || !navigator.clipboard || !window.ClipboardItem) {
+  if (
+    typeof navigator === "undefined" ||
+    !navigator.clipboard ||
+    !window.ClipboardItem
+  ) {
     return false;
   }
   try {

@@ -31,6 +31,8 @@ export function saveMascot(id: MascotId) {
   }
 }
 
+export type MascotMood = "idle" | "panic" | "rage" | "smug";
+
 type DrawMascotOptions = {
   ctx: CanvasRenderingContext2D;
   x: number;
@@ -40,6 +42,7 @@ type DrawMascotOptions = {
   mascot: MascotId;
   airborne?: boolean;
   facing?: 1 | -1;
+  mood?: MascotMood;
 };
 
 function roundRect(
@@ -70,6 +73,7 @@ export function drawMascot(options: DrawMascotOptions) {
     mascot,
     airborne = false,
     facing = 1,
+    mood = "idle",
   } = options;
 
   const squash = airborne ? 0.9 : 1;
@@ -80,12 +84,12 @@ export function drawMascot(options: DrawMascotOptions) {
   const by = y + (h - bodyH);
 
   const skin = mascot === "queen" ? "#f7d7c4" : "#f0c8a8";
-  const accent = mascot === "queen" ? "#ff5a8a" : "#ff4d2e";
+  const accent = mascot === "queen" ? "#818CF8" : "#6366F1";
   const hair = mascot === "queen" ? "#2a1d14" : "#1a1410";
-  const shirt = mascot === "queen" ? "#7c5cff" : "#3dff9a";
+  const shirt = mascot === "queen" ? "#6366F1" : "#10B981";
   // Pants need strong contrast on dark stages (hair-black looked "transparent").
   const pants = mascot === "queen" ? "#3d2a6d" : "#1f4d6d";
-  const shoes = mascot === "queen" ? "#ff5a8a" : "#ff4d2e";
+  const shoes = mascot === "queen" ? "#818CF8" : "#6366F1";
 
   ctx.save();
   if (facing < 0) {
@@ -139,24 +143,52 @@ export function drawMascot(options: DrawMascotOptions) {
   ctx.ellipse(bx + bodyW * 0.68, by + bodyH * 0.32, bodyW * 0.07, bodyH * 0.04, 0, 0, Math.PI * 2);
   ctx.fill();
 
-  // eyes
-  ctx.fillStyle = "#10131a";
+  // eyes — mood shifts the expression for previews / fails
+  const eyeY = by + bodyH * (mood === "rage" ? 0.255 : 0.26);
+  const eyeR = bodyW * (mood === "panic" ? 0.07 : 0.055);
+  ctx.fillStyle = "#0B0F19";
   ctx.beginPath();
-  ctx.arc(bx + bodyW * 0.4, by + bodyH * 0.26, bodyW * 0.055, 0, Math.PI * 2);
-  ctx.arc(bx + bodyW * 0.6, by + bodyH * 0.26, bodyW * 0.055, 0, Math.PI * 2);
+  ctx.arc(bx + bodyW * 0.4, eyeY, eyeR, 0, Math.PI * 2);
+  ctx.arc(bx + bodyW * 0.6, eyeY, eyeR, 0, Math.PI * 2);
   ctx.fill();
-  ctx.fillStyle = "#fff";
-  ctx.beginPath();
-  ctx.arc(bx + bodyW * 0.42, by + bodyH * 0.245, bodyW * 0.02, 0, Math.PI * 2);
-  ctx.arc(bx + bodyW * 0.62, by + bodyH * 0.245, bodyW * 0.02, 0, Math.PI * 2);
-  ctx.fill();
+  if (mood !== "rage") {
+    ctx.fillStyle = "#fff";
+    ctx.beginPath();
+    ctx.arc(bx + bodyW * 0.42, eyeY - bodyH * 0.015, bodyW * 0.02, 0, Math.PI * 2);
+    ctx.arc(bx + bodyW * 0.62, eyeY - bodyH * 0.015, bodyW * 0.02, 0, Math.PI * 2);
+    ctx.fill();
+  }
+  if (mood === "panic") {
+    // sweat drop
+    ctx.fillStyle = "rgba(180, 220, 255, 0.85)";
+    ctx.beginPath();
+    ctx.ellipse(
+      bx + bodyW * 0.78,
+      by + bodyH * 0.2,
+      bodyW * 0.04,
+      bodyH * 0.06,
+      0.2,
+      0,
+      Math.PI * 2,
+    );
+    ctx.fill();
+  }
 
-  // smile
-  ctx.strokeStyle = "#10131a";
+  // mouth
+  ctx.strokeStyle = "#0B0F19";
   ctx.lineWidth = Math.max(1.2, bodyW * 0.04);
   ctx.lineCap = "round";
   ctx.beginPath();
-  ctx.arc(bx + bodyW / 2, by + bodyH * 0.33, bodyW * 0.1, 0.15, Math.PI - 0.15);
+  if (mood === "rage") {
+    ctx.moveTo(bx + bodyW * 0.4, by + bodyH * 0.34);
+    ctx.lineTo(bx + bodyW * 0.6, by + bodyH * 0.34);
+  } else if (mood === "panic") {
+    ctx.arc(bx + bodyW / 2, by + bodyH * 0.36, bodyW * 0.08, Math.PI + 0.2, -0.2);
+  } else if (mood === "smug") {
+    ctx.arc(bx + bodyW / 2, by + bodyH * 0.32, bodyW * 0.1, 0.35, Math.PI - 0.05);
+  } else {
+    ctx.arc(bx + bodyW / 2, by + bodyH * 0.33, bodyW * 0.1, 0.15, Math.PI - 0.15);
+  }
   ctx.stroke();
 
   if (mascot === "queen") {
@@ -193,7 +225,7 @@ export function drawMascot(options: DrawMascotOptions) {
     ctx.fillStyle = accent;
     roundRect(ctx, bx + bodyW * 0.2, by + bodyH * 0.08, bodyW * 0.6, bodyH * 0.1, 6);
     ctx.fill();
-    ctx.fillStyle = "#f3f0e8";
+    ctx.fillStyle = "#F8FAFC";
     ctx.fillRect(bx + bodyW * 0.42, by + bodyH * 0.05, bodyW * 0.16, bodyH * 0.06);
   }
 

@@ -39,7 +39,7 @@ function MascotCard({
     ctx.clearRect(0, 0, size, size);
     const grad = ctx.createLinearGradient(0, 0, 0, size);
     grad.addColorStop(0, "#1a2230");
-    grad.addColorStop(1, "#10131a");
+    grad.addColorStop(1, "#0B0F19");
     ctx.fillStyle = grad;
     ctx.fillRect(0, 0, size, size);
     drawMascotPreview(ctx, id, size / 2, size / 2 + 8, 96);
@@ -63,7 +63,7 @@ function MascotCard({
 export function MascotPicker({ onPick }: MascotPickerProps) {
   return (
     <div className="absolute inset-0 z-30 flex items-center justify-center bg-[rgba(8,10,14,0.82)] p-4 backdrop-blur-[2px]">
-      <div className="w-full max-w-lg border border-line bg-[#121821] p-5 sm:p-6">
+      <div className="w-full max-w-lg border border-line bg-bg-elevated p-5 sm:p-6">
         <p className="text-xs font-semibold uppercase tracking-[0.28em] text-fair">
           Pick your pain avatar
         </p>

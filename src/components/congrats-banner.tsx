@@ -3,20 +3,17 @@
 import {
   useEffect,
   useMemo,
+  useRef,
   useState,
   type KeyboardEvent as ReactKeyboardEvent,
   type MouseEvent,
 } from "react";
 import {
-  audienceRoastForResult,
   ctaForResult,
   eyebrowForResult,
   headlineForResult,
   moneyLabel,
-  progressLabel,
-  roastEmojiForResult,
   shareTextForResult,
-  sublineForResult,
 } from "@/games/almost-there/copy";
 import {
   drawMascotPreview,
@@ -28,6 +25,8 @@ import {
   downloadBlob,
   renderRoastCard,
 } from "@/lib/capture";
+import { getLocale } from "@/lib/locale";
+import { getLossesToday } from "@/lib/streak";
 
 type CongratsBannerProps = {
   result: RunResult;
@@ -44,16 +43,19 @@ export function CongratsBanner({
 }: CongratsBannerProps) {
   const [shareNote, setShareNote] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [cardReady, setCardReady] = useState(false);
+  const primedBlob = useRef<Blob | null>(null);
+  const pidgin = getLocale().dialect === "pidgin";
+  const lossesToday = getLossesToday();
+  const exposeLabel = result.won
+    ? "EXPOSE THIS ILLEGAL W"
+    : pidgin
+      ? "EXPOSE THIS LOSS ABEG"
+      : "EXPOSE THIS LOSS";
+
   const eyebrow = useMemo(() => eyebrowForResult(result), [result]);
-  const emoji = useMemo(() => roastEmojiForResult(result), [result]);
   const headline = useMemo(() => headlineForResult(result), [result]);
-  const subline = useMemo(() => sublineForResult(result), [result]);
-  const audience = useMemo(() => audienceRoastForResult(result), [result]);
   const cta = useMemo(() => ctaForResult(result), [result]);
-  const progress = useMemo(
-    () => progressLabel(result.progress),
-    [result.progress],
-  );
   const moneyLine = useMemo(() => moneyLabel(result), [result]);
   const shareBody = useMemo(() => shareTextForResult(result), [result]);
 
@@ -75,11 +77,7 @@ export function CongratsBanner({
     return renderRoastCard({
       gameCanvas,
       eyebrow,
-      emoji,
       headline,
-      subline,
-      audience,
-      progress,
       moneyLine,
       mascotLabel: mascot === "queen" ? "QUEEN" : "KING",
       drawMascot: (ctx, x, y, size) => {
@@ -88,22 +86,47 @@ export function CongratsBanner({
     });
   }
 
+  useEffect(() => {
+    let cancelled = false;
+    primedBlob.current = null;
+    const timer = window.setTimeout(() => {
+      void (async () => {
+        try {
+          const blob = await buildCard();
+          if (cancelled) return;
+          primedBlob.current = blob;
+          setCardReady(true);
+        } catch {
+          // share still builds on demand
+        }
+      })();
+    }, 0);
+    return () => {
+      cancelled = true;
+      window.clearTimeout(timer);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- prime once per result
+  }, [result.seed, result.won, result.durationMs, gameCanvas]);
+
+  async function getCardBlob(): Promise<Blob> {
+    if (primedBlob.current) return primedBlob.current;
+    const blob = await buildCard();
+    primedBlob.current = blob;
+    setCardReady(true);
+    return blob;
+  }
+
   async function handleShare(e: MouseEvent | ReactKeyboardEvent) {
     e.stopPropagation();
     e.preventDefault();
     if (busy) return;
     setBusy(true);
-    setShareNote("cooking 📸");
+    setShareNote(pidgin ? "e dey cook…" : "cooking…");
     try {
-      const blob = await buildCard();
+      const blob = await getCardBlob();
       const copied = await copyImageToClipboard(blob);
       downloadBlob(blob, `almost-there-${result.seed}.png`);
-      setShareNote(
-        copied
-          ? "copied + downloaded 💀"
-          : "downloaded 💀 (clipboard blocked)",
-      );
-      // Keep text handy for captions too
+      setShareNote(copied ? "copied + saved" : "saved");
       try {
         if (!copied) {
           await navigator.clipboard.writeText(shareBody);
@@ -112,23 +135,23 @@ export function CongratsBanner({
         // ignore
       }
     } catch {
-      setShareNote("share failed — try again");
+      setShareNote("failed — try again");
     } finally {
       setBusy(false);
     }
   }
 
-  async function handleDownloadOnly(e: MouseEvent) {
+  async function handleDownloadOnly(e: MouseEvent | ReactKeyboardEvent) {
     e.stopPropagation();
     e.preventDefault();
     if (busy) return;
     setBusy(true);
     try {
-      const blob = await buildCard();
+      const blob = await getCardBlob();
       downloadBlob(blob, `almost-there-${result.seed}.png`);
-      setShareNote("downloaded 📥");
+      setShareNote("saved");
     } catch {
-      setShareNote("download failed");
+      setShareNote("failed");
     } finally {
       setBusy(false);
     }
@@ -137,78 +160,59 @@ export function CongratsBanner({
   return (
     <button
       type="button"
-      className="absolute inset-0 z-20 flex cursor-pointer flex-col items-center justify-center border-0 bg-[rgba(8,10,14,0.72)] p-4 text-center backdrop-blur-[2px] sm:p-6"
+      className="absolute inset-0 z-20 flex cursor-pointer flex-col items-center justify-center border-0 bg-[rgba(7,10,18,0.82)] p-4 text-center backdrop-blur-[2px] sm:p-6"
       onClick={onContinue}
       aria-label={cta}
     >
-      <div className="animate-float-in w-full max-w-xl border border-line bg-[#121821]/95 px-5 py-7 shadow-[0_24px_80px_rgba(0,0,0,0.55)] sm:px-8 sm:py-9">
-        <p className="text-xs font-semibold uppercase tracking-[0.28em] text-fair">
+      <div className="animate-float-in w-full max-w-md border border-line bg-[#131926]/97 px-5 py-7 shadow-[0_24px_80px_rgba(0,0,0,0.55)] sm:px-7 sm:py-8">
+        <p className="text-[10px] font-semibold uppercase tracking-[0.28em] text-accent">
           {eyebrow}
         </p>
 
-        <p className="mt-4 text-6xl leading-none sm:text-7xl" aria-hidden>
-          {emoji}
-        </p>
-
-        <h2 className="mt-3 font-[family-name:var(--font-display)] text-4xl leading-[0.95] text-ink sm:text-5xl">
+        <h2 className="mt-4 font-[family-name:var(--font-display)] text-3xl leading-[1.05] text-ink sm:text-4xl">
           {headline}
         </h2>
 
-        <p className="mt-4 text-base text-ink/85 sm:text-lg">{subline}</p>
+        <p className="mt-4 text-base font-extrabold text-fair sm:text-lg">
+          {moneyLine}
+        </p>
 
-        <p className="mt-3 text-sm font-medium text-accent-soft">{audience}</p>
-
-        <p className="mt-3 text-lg font-extrabold text-fair">{moneyLine}</p>
-        <p className="mt-1 text-xs text-muted">{progress}</p>
+        {lossesToday > 0 && !result.won ? (
+          <p className="mt-2 text-[10px] uppercase tracking-[0.16em] text-muted">
+            {lossesToday} loss{lossesToday === 1 ? "" : "es"} today
+          </p>
+        ) : null}
 
         <span className="mt-7 inline-flex bg-accent px-5 py-3 text-sm font-bold uppercase tracking-[0.14em] text-white">
           {cta}
         </span>
 
-        <div className="mt-5 flex flex-col items-center gap-2">
+        <div className="mt-5 flex w-full flex-col items-center gap-2">
           <span
             role="link"
             tabIndex={0}
-            className="pointer-events-auto text-xs uppercase tracking-[0.16em] text-ink underline-offset-4 hover:underline"
+            className="pointer-events-auto inline-flex w-full items-center justify-center border border-ink/25 bg-ink px-4 py-3 text-xs font-bold uppercase tracking-[0.14em] text-bg transition hover:border-accent hover:bg-accent hover:text-white"
             onClick={(e) => {
               void handleShare(e);
             }}
             onKeyDown={(e) => {
-              if (e.key === "Enter") {
-                void handleShare(e);
-              }
+              if (e.key === "Enter") void handleShare(e);
             }}
           >
-            expose this loss 📸{shareNote ? ` · ${shareNote}` : ""}
+            {busy ? "…" : exposeLabel}
           </span>
           <span
             role="link"
             tabIndex={0}
-            className="pointer-events-auto text-[10px] uppercase tracking-[0.16em] text-muted underline-offset-4 hover:text-ink hover:underline"
+            className="pointer-events-auto text-[10px] uppercase tracking-[0.14em] text-muted underline-offset-4 hover:text-ink hover:underline"
             onClick={(e) => {
               void handleDownloadOnly(e);
             }}
             onKeyDown={(e) => {
-              if (e.key === "Enter") {
-                e.stopPropagation();
-                e.preventDefault();
-                void (async () => {
-                  if (busy) return;
-                  setBusy(true);
-                  try {
-                    const blob = await buildCard();
-                    downloadBlob(blob, `almost-there-${result.seed}.png`);
-                    setShareNote("downloaded 📥");
-                  } catch {
-                    setShareNote("download failed");
-                  } finally {
-                    setBusy(false);
-                  }
-                })();
-              }
+              if (e.key === "Enter") void handleDownloadOnly(e);
             }}
           >
-            download png
+            {shareNote ?? (cardReady ? "or download png" : "priming…")}
           </span>
         </div>
       </div>
