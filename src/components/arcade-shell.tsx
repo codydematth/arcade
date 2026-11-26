@@ -53,7 +53,7 @@ export function ArcadeShell({
             rel="noopener noreferrer"
             className="text-xs uppercase tracking-[0.16em] text-accent transition hover:text-accent-soft"
           >
-            Fuel the unfairness ☕
+            Sponsor the unfairness ☕
           </a>
         </footer>
       ) : null}
