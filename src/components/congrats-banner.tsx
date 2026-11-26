@@ -12,7 +12,6 @@ import {
   ctaForResult,
   eyebrowForResult,
   headlineForResult,
-  moneyLabel,
   shareTextForResult,
 } from "@/games/almost-there/copy";
 import {
@@ -25,14 +24,22 @@ import {
   downloadBlob,
   renderRoastCard,
 } from "@/lib/capture";
+import {
+  getCareer,
+  getLossesToday,
+  WINS_FOR_HONEST_MODE,
+} from "@/lib/career";
 import { getLocale } from "@/lib/locale";
-import { getLossesToday } from "@/lib/streak";
+import { stickerForResult, stickerToneClass } from "@/lib/stickers";
 
 type CongratsBannerProps = {
   result: RunResult;
   mascot: MascotId;
   gameCanvas: HTMLCanvasElement | null;
   onContinue: () => void;
+  honestUnlocked?: boolean;
+  honestActive?: boolean;
+  onSwitchMode?: (honest: boolean) => void;
 };
 
 export function CongratsBanner({
@@ -40,15 +47,26 @@ export function CongratsBanner({
   mascot,
   gameCanvas,
   onContinue,
+  honestUnlocked = false,
+  honestActive = false,
+  onSwitchMode,
 }: CongratsBannerProps) {
   const [shareNote, setShareNote] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
-  const [cardReady, setCardReady] = useState(false);
   const primedBlob = useRef<Blob | null>(null);
   const pidgin = getLocale().dialect === "pidgin";
   const lossesToday = getLossesToday();
+  const career = getCareer();
+  const justUnlockedHonest =
+    result.won &&
+    career.honestUnlocked &&
+    career.wins === WINS_FOR_HONEST_MODE;
   const exposeLabel = result.won
-    ? "EXPOSE THIS ILLEGAL W"
+    ? honestActive
+      ? pidgin
+        ? "EXPOSE THIS CLEAN W"
+        : "EXPOSE THIS CLEAN W"
+      : "EXPOSE THIS ILLEGAL W"
     : pidgin
       ? "EXPOSE THIS LOSS ABEG"
       : "EXPOSE THIS LOSS";
@@ -56,7 +74,7 @@ export function CongratsBanner({
   const eyebrow = useMemo(() => eyebrowForResult(result), [result]);
   const headline = useMemo(() => headlineForResult(result), [result]);
   const cta = useMemo(() => ctaForResult(result), [result]);
-  const moneyLine = useMemo(() => moneyLabel(result), [result]);
+  const sticker = useMemo(() => stickerForResult(result), [result]);
   const shareBody = useMemo(() => shareTextForResult(result), [result]);
 
   useEffect(() => {
@@ -78,7 +96,7 @@ export function CongratsBanner({
       gameCanvas,
       eyebrow,
       headline,
-      moneyLine,
+      sticker,
       mascotLabel: mascot === "queen" ? "QUEEN" : "KING",
       drawMascot: (ctx, x, y, size) => {
         drawMascotPreview(ctx, mascot, x + size / 2, y + size / 2, size);
@@ -95,7 +113,6 @@ export function CongratsBanner({
           const blob = await buildCard();
           if (cancelled) return;
           primedBlob.current = blob;
-          setCardReady(true);
         } catch {
           // share still builds on demand
         }
@@ -112,7 +129,6 @@ export function CongratsBanner({
     if (primedBlob.current) return primedBlob.current;
     const blob = await buildCard();
     primedBlob.current = blob;
-    setCardReady(true);
     return blob;
   }
 
@@ -141,22 +157,6 @@ export function CongratsBanner({
     }
   }
 
-  async function handleDownloadOnly(e: MouseEvent | ReactKeyboardEvent) {
-    e.stopPropagation();
-    e.preventDefault();
-    if (busy) return;
-    setBusy(true);
-    try {
-      const blob = await getCardBlob();
-      downloadBlob(blob, `almost-there-${result.seed}.png`);
-      setShareNote("saved");
-    } catch {
-      setShareNote("failed");
-    } finally {
-      setBusy(false);
-    }
-  }
-
   return (
     <button
       type="button"
@@ -164,8 +164,16 @@ export function CongratsBanner({
       onClick={onContinue}
       aria-label={cta}
     >
-      <div className="animate-float-in w-full max-w-md border border-line bg-[#131926]/97 px-5 py-7 shadow-[0_24px_80px_rgba(0,0,0,0.55)] sm:px-7 sm:py-8">
-        <p className="text-[10px] font-semibold uppercase tracking-[0.28em] text-accent">
+      <div className="animate-float-in relative w-full max-w-md overflow-hidden border border-line bg-[#131926]/97 px-5 py-7 shadow-[0_24px_80px_rgba(0,0,0,0.55)] sm:px-7 sm:py-8">
+        <span
+          aria-hidden
+          className={`pointer-events-none absolute -right-1 top-4 z-10 select-none border-2 border-dashed bg-[#0B0F19]/88 px-3 py-2 text-[11px] font-extrabold uppercase tracking-[0.16em] shadow-[0_8px_24px_rgba(0,0,0,0.45)] sm:right-2 sm:top-5 sm:text-xs ${stickerToneClass(sticker.tone)}`}
+          style={{ transform: `rotate(${sticker.rotate}deg)` }}
+        >
+          {sticker.label}
+        </span>
+
+        <p className="pr-20 text-[10px] font-semibold uppercase tracking-[0.28em] text-accent sm:pr-24">
           {eyebrow}
         </p>
 
@@ -173,12 +181,19 @@ export function CongratsBanner({
           {headline}
         </h2>
 
-        <p className="mt-4 text-base font-extrabold text-fair sm:text-lg">
-          {moneyLine}
-        </p>
-
-        {lossesToday > 0 && !result.won ? (
-          <p className="mt-2 text-[10px] uppercase tracking-[0.16em] text-muted">
+        {justUnlockedHonest ? (
+          <p className="mt-3 text-[10px] uppercase tracking-[0.16em] text-accent">
+            Honest Mode unlocked
+          </p>
+        ) : result.won && honestActive && career.winStreak > 0 ? (
+          <p className="mt-3 text-[10px] uppercase tracking-[0.16em] text-muted">
+            {career.winStreak} clear streak
+            {career.bestWinStreak > career.winStreak
+              ? ` · best ${career.bestWinStreak}`
+              : ""}
+          </p>
+        ) : lossesToday > 0 && !result.won ? (
+          <p className="mt-3 text-[10px] uppercase tracking-[0.16em] text-muted">
             {lossesToday} loss{lossesToday === 1 ? "" : "es"} today
           </p>
         ) : null}
@@ -201,19 +216,38 @@ export function CongratsBanner({
           >
             {busy ? "…" : exposeLabel}
           </span>
-          <span
-            role="link"
-            tabIndex={0}
-            className="pointer-events-auto text-[10px] uppercase tracking-[0.14em] text-muted underline-offset-4 hover:text-ink hover:underline"
-            onClick={(e) => {
-              void handleDownloadOnly(e);
-            }}
-            onKeyDown={(e) => {
-              if (e.key === "Enter") void handleDownloadOnly(e);
-            }}
-          >
-            {shareNote ?? (cardReady ? "or download png" : "priming…")}
-          </span>
+          {honestUnlocked && onSwitchMode ? (
+            <span
+              role="link"
+              tabIndex={0}
+              className="pointer-events-auto text-[10px] font-semibold uppercase tracking-[0.16em] text-muted underline-offset-2 transition hover:text-ink hover:underline"
+              onClick={(e) => {
+                e.stopPropagation();
+                e.preventDefault();
+                onSwitchMode(!honestActive);
+              }}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") {
+                  e.stopPropagation();
+                  e.preventDefault();
+                  onSwitchMode(!honestActive);
+                }
+              }}
+            >
+              {honestActive
+                ? pidgin
+                  ? "Back to Chaos Mode"
+                  : "Back to Chaos Mode"
+                : pidgin
+                  ? "Switch to Honest Mode"
+                  : "Switch to Honest Mode"}
+            </span>
+          ) : null}
+          {shareNote ? (
+            <p className="text-[10px] uppercase tracking-[0.14em] text-muted">
+              {shareNote}
+            </p>
+          ) : null}
         </div>
       </div>
     </button>

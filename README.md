@@ -42,11 +42,16 @@ yarn start
 - Silent locale detect (IP/country): **Nigeria → Pidgin + ₦**, else English + `$`
 - Roast banner + **screenshot share** (clipboard image when allowed + PNG download)
 
+## Support link
+
+Landing footer uses `BUY_ME_A_COFFEE_URL` in `src/lib/games.ts` (default `buymeacoffee.com/codydematth`). Change the handle if yours differs.
+
 ## Deploy (`games.matthiasamire.com`)
 
 1. Create a Vercel project from this folder.
 2. Add domain `games.matthiasamire.com`.
 3. Point DNS `games` CNAME to Vercel.
+4. SEO ships with `/sitemap.xml`, `/robots.txt`, and Open Graph images.
 
 ## Creator posting tips
 

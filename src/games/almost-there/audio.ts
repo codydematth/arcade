@@ -47,33 +47,16 @@ const PATTERNS: Record<SfxName, Tone[]> = {
   ],
 };
 
-/** Original bright chiptune loop — not a Mario melody. */
-const MUSIC_MELODY = [
-  523.25, 587.33, 659.25, 783.99, 659.25, 587.33, 523.25, 392.0, 440.0, 493.88,
-  523.25, 493.88, 440.0, 392.0, 349.23, 392.0,
-];
-
-const NOTE_GAP = 0.18;
-
 export type GameAudio = {
   unlock: () => Promise<void>;
   play: (name: SfxName) => void;
   setSfxMuted: (muted: boolean) => void;
-  setMusicMuted: (muted: boolean) => void;
   isSfxMuted: () => boolean;
-  isMusicMuted: () => boolean;
-  startMusic: () => void;
-  stopMusic: () => void;
 };
 
 export function createGameAudio(): GameAudio {
   let ctx: AudioContext | null = null;
   let sfxMuted = false;
-  let musicMuted = true;
-  let musicStep = 0;
-  let musicGain: GainNode | null = null;
-  let nextNoteTime = 0;
-  let musicTimer: number | null = null;
   let unlocking: Promise<void> | null = null;
 
   function getCtx(): AudioContext | null {
@@ -85,9 +68,6 @@ export function createGameAudio(): GameAudio {
           .webkitAudioContext;
       if (!Ctx) return null;
       ctx = new Ctx();
-      musicGain = ctx.createGain();
-      musicGain.gain.value = 0.14;
-      musicGain.connect(ctx.destination);
     }
     return ctx;
   }
@@ -96,7 +76,6 @@ export function createGameAudio(): GameAudio {
     const audio = getCtx();
     if (!audio) return;
 
-    // Always try resume; don't cache a failed unlock forever.
     unlocking = (async () => {
       try {
         if (audio.state === "suspended") {
@@ -141,60 +120,6 @@ export function createGameAudio(): GameAudio {
     osc.stop(when + tone.duration + 0.03);
   }
 
-  function scheduleMusicNote(at: number) {
-    const audio = getCtx();
-    if (!audio || musicMuted || !musicGain) return;
-
-    const freq = MUSIC_MELODY[musicStep % MUSIC_MELODY.length]!;
-    musicStep += 1;
-
-    const osc = audio.createOscillator();
-    const gain = audio.createGain();
-    osc.type = "square";
-    osc.frequency.setValueAtTime(freq, at);
-    gain.gain.setValueAtTime(0.0001, at);
-    gain.gain.exponentialRampToValueAtTime(0.12, at + 0.01);
-    gain.gain.exponentialRampToValueAtTime(0.0001, at + 0.15);
-    osc.connect(gain);
-    gain.connect(musicGain);
-    osc.start(at);
-    osc.stop(at + 0.17);
-  }
-
-  function musicTick() {
-    const audio = getCtx();
-    if (!audio || musicMuted || audio.state !== "running") return;
-
-    // Schedule a short horizon of notes ahead of the playhead.
-    const horizon = audio.currentTime + 0.35;
-    while (nextNoteTime < horizon) {
-      scheduleMusicNote(nextNoteTime);
-      nextNoteTime += NOTE_GAP;
-    }
-  }
-
-  function clearMusicTimer() {
-    if (musicTimer !== null) {
-      window.clearInterval(musicTimer);
-      musicTimer = null;
-    }
-  }
-
-  function beginMusic() {
-    const audio = getCtx();
-    if (!audio || musicMuted || audio.state !== "running") return;
-    clearMusicTimer();
-    musicStep = 0;
-    nextNoteTime = audio.currentTime + 0.05;
-    // Audible kick so toggling Music on is obvious.
-    scheduleMusicNote(nextNoteTime);
-    nextNoteTime += NOTE_GAP;
-    scheduleMusicNote(nextNoteTime);
-    nextNoteTime += NOTE_GAP;
-    musicTick();
-    musicTimer = window.setInterval(musicTick, 50);
-  }
-
   return {
     unlock,
     play(name) {
@@ -221,30 +146,8 @@ export function createGameAudio(): GameAudio {
     setSfxMuted(next) {
       sfxMuted = next;
     },
-    setMusicMuted(next) {
-      musicMuted = next;
-      if (musicMuted) {
-        clearMusicTimer();
-        return;
-      }
-      void unlock().then(() => {
-        if (!musicMuted) beginMusic();
-      });
-    },
     isSfxMuted() {
       return sfxMuted;
-    },
-    isMusicMuted() {
-      return musicMuted;
-    },
-    startMusic() {
-      if (musicMuted) return;
-      void unlock().then(() => {
-        if (!musicMuted) beginMusic();
-      });
-    },
-    stopMusic() {
-      clearMusicTimer();
     },
   };
 }

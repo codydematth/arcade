@@ -98,10 +98,18 @@ export function drawMascot(options: DrawMascotOptions) {
     ctx.translate(-bx, -by);
   }
 
-  // soft shadow
-  ctx.fillStyle = "rgba(0,0,0,0.35)";
+  // Soft ground contact only — keep under the feet, not beside the body.
+  ctx.fillStyle = "rgba(0,0,0,0.22)";
   ctx.beginPath();
-  ctx.ellipse(bx + bodyW / 2, by + bodyH + 2, bodyW * 0.4, 5, 0, 0, Math.PI * 2);
+  ctx.ellipse(
+    bx + bodyW / 2,
+    by + bodyH + 1,
+    bodyW * 0.28,
+    3.5,
+    0,
+    0,
+    Math.PI * 2,
+  );
   ctx.fill();
 
   // legs + shoes (drawn solid, below a shorter torso so they stay visible)

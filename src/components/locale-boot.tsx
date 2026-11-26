@@ -38,7 +38,7 @@ async function countryFromBrowserApis(): Promise<string | null> {
 
 /**
  * Silently resolves locale. No UI.
- * Africa/Lagos timezone always wins for Nigeria (IP APIs are flaky/rate-limited).
+ * Any Africa/* timezone wins for Pidgin (IP APIs are flaky/rate-limited).
  */
 export function LocaleBoot() {
   // Sync path runs before paint when this module evaluates / first getLocale.
@@ -50,7 +50,7 @@ export function LocaleBoot() {
     async function boot() {
       ensureClientBootstrap();
 
-      // If West-Africa TZ already locked Nigeria, skip flaky IP overrides.
+      // If Africa TZ already locked Pidgin, skip flaky IP overrides.
       if (localeFromTimezone()) return;
 
       try {

@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { CongratsBanner } from "@/components/congrats-banner";
+import { HonestModeTip } from "@/components/honest-mode-tip";
 import { MascotPicker } from "@/components/mascot-picker";
 import { createGameAudio } from "@/games/almost-there/audio";
 import { createAlmostThereEngine } from "@/games/almost-there/engine";
@@ -12,8 +13,38 @@ import {
   type MascotId,
 } from "@/games/almost-there/mascot";
 import type { EngineSnapshot, RunResult } from "@/games/almost-there/types";
+import {
+  getCareer,
+  hasSeenHonestTip,
+  isHonestModeActive,
+  setHonestModeEnabled,
+} from "@/lib/career";
+import { requestGameFullscreen } from "@/lib/fullscreen";
+
+const WIN_BANNER_DELAY_MS = 1400;
+const LOSS_BANNER_DELAY_MS = 1800;
+const STAGE_WIDTH_KEY = "almost-fair-stage-wide-v1";
+
+function loadWideStage(): boolean {
+  if (typeof window === "undefined") return false;
+  try {
+    return window.localStorage.getItem(STAGE_WIDTH_KEY) === "1";
+  } catch {
+    return false;
+  }
+}
+
+function saveWideStage(wide: boolean) {
+  if (typeof window === "undefined") return;
+  try {
+    window.localStorage.setItem(STAGE_WIDTH_KEY, wide ? "1" : "0");
+  } catch {
+    // ignore
+  }
+}
 
 export function AlmostThereGame() {
+  const shellRef = useRef<HTMLDivElement | null>(null);
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const wrapRef = useRef<HTMLDivElement | null>(null);
   const engineRef = useRef<ReturnType<typeof createAlmostThereEngine> | null>(
@@ -21,15 +52,39 @@ export function AlmostThereGame() {
   );
   const audioRef = useRef<ReturnType<typeof createGameAudio> | null>(null);
   const shownResultKey = useRef<string | null>(null);
+  const finishLockRef = useRef(false);
   const bannerOpenRef = useRef(false);
+  const bannerTimerRef = useRef<number | null>(null);
+  const fullscreenTriedRef = useRef(false);
+
+  const tryFullscreen = useCallback(() => {
+    if (fullscreenTriedRef.current) return;
+    fullscreenTriedRef.current = true;
+    void requestGameFullscreen(shellRef.current);
+  }, []);
+
+  const clearBannerTimer = useCallback(() => {
+    if (bannerTimerRef.current !== null) {
+      window.clearTimeout(bannerTimerRef.current);
+      bannerTimerRef.current = null;
+    }
+  }, []);
 
   const [snapshot, setSnapshot] = useState<EngineSnapshot | null>(null);
   const [result, setResult] = useState<RunResult | null>(null);
   const [shareCanvas, setShareCanvas] = useState<HTMLCanvasElement | null>(null);
   const [sfxMuted, setSfxMuted] = useState(false);
-  const [musicMuted, setMusicMuted] = useState(true);
+  const [wideStage, setWideStage] = useState(loadWideStage);
+  const [honestUnlocked, setHonestUnlocked] = useState(
+    () => getCareer().honestUnlocked,
+  );
+  const [honestOn, setHonestOn] = useState(() => isHonestModeActive());
   const [mascot, setMascot] = useState<MascotId | null>(() => loadMascot());
   const [picking, setPicking] = useState(() => loadMascot() === null);
+  const [showHonestTip, setShowHonestTip] = useState(() => {
+    if (typeof window === "undefined") return false;
+    return !hasSeenHonestTip();
+  });
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -72,11 +127,6 @@ export function AlmostThereGame() {
 
     const onVisibility = () => {
       last = performance.now();
-      if (document.hidden) {
-        audio.stopMusic();
-      } else if (!audio.isMusicMuted()) {
-        audio.startMusic();
-      }
     };
     document.addEventListener("visibilitychange", onVisibility);
 
@@ -108,15 +158,28 @@ export function AlmostThereGame() {
       if (
         (next.status === "won" || next.status === "lost") &&
         next.result &&
-        !bannerOpenRef.current
+        !finishLockRef.current
       ) {
         const key = `${next.result.seed}-${next.result.won}-${next.result.durationMs}`;
         if (shownResultKey.current !== key) {
           shownResultKey.current = key;
-          bannerOpenRef.current = true;
+          finishLockRef.current = true;
+          bannerOpenRef.current = false;
           setShareCanvas(canvas);
-          setResult(next.result);
-          audio.play("congrats");
+          const delay = next.result.won
+            ? WIN_BANNER_DELAY_MS
+            : LOSS_BANNER_DELAY_MS;
+          const pending = next.result;
+          clearBannerTimer();
+          bannerTimerRef.current = window.setTimeout(() => {
+            if (!running) return;
+            bannerOpenRef.current = true;
+            const career = getCareer();
+            setHonestUnlocked(career.honestUnlocked);
+            setHonestOn(career.honestUnlocked && career.honestEnabled);
+            setResult(pending);
+            audio.play("congrats");
+          }, delay);
         }
       }
 
@@ -129,50 +192,56 @@ export function AlmostThereGame() {
     return () => {
       running = false;
       cancelAnimationFrame(raf);
+      clearBannerTimer();
       ro.disconnect();
       window.removeEventListener("resize", resize);
       document.removeEventListener("visibilitychange", onVisibility);
-      audio.stopMusic();
       engine.destroy();
       engineRef.current = null;
       audioRef.current = null;
     };
-  }, []);
+  }, [clearBannerTimer]);
 
-  const applyMascot = useCallback((id: MascotId) => {
-    saveMascot(id);
-    setMascot(id);
-    setPicking(false);
-    engineRef.current?.setMascot(id);
-    const audio = audioRef.current;
-    if (audio) {
-      void audio.unlock().then(() => {
-        audio.play("start");
-      });
-    }
-  }, []);
+  const applyMascot = useCallback(
+    (id: MascotId) => {
+      tryFullscreen();
+      saveMascot(id);
+      setMascot(id);
+      setPicking(false);
+      engineRef.current?.setMascot(id);
+      const audio = audioRef.current;
+      if (audio) {
+        void audio.unlock().then(() => {
+          audio.play("start");
+        });
+      }
+    },
+    [tryFullscreen],
+  );
 
   const triggerJump = useCallback(() => {
-    if (bannerOpenRef.current || picking) return;
+    if (finishLockRef.current || picking || showHonestTip) return;
     if (!mascot) {
       setPicking(true);
       return;
     }
+    tryFullscreen();
     const audio = audioRef.current;
     if (audio) {
-      void audio.unlock().then(() => {
-        if (!audio.isMusicMuted()) {
-          audio.startMusic();
-        }
-      });
+      void audio.unlock();
     }
     engineRef.current?.jump();
-  }, [mascot, picking]);
+  }, [mascot, picking, showHonestTip, tryFullscreen]);
 
   const continueNewRoute = useCallback(() => {
+    clearBannerTimer();
+    finishLockRef.current = false;
     bannerOpenRef.current = false;
     shownResultKey.current = null;
     setResult(null);
+    const career = getCareer();
+    setHonestUnlocked(career.honestUnlocked);
+    setHonestOn(career.honestUnlocked && career.honestEnabled);
     const audio = audioRef.current;
     if (audio) {
       void audio.unlock().then(() => {
@@ -180,7 +249,25 @@ export function AlmostThereGame() {
       });
     }
     engineRef.current?.retryNewRoute();
-  }, []);
+  }, [clearBannerTimer]);
+
+  const setPlayMode = useCallback(
+    (honest: boolean) => {
+      if (!getCareer().honestUnlocked) return;
+      if (picking || showHonestTip) return;
+      const next = setHonestModeEnabled(honest);
+      setHonestUnlocked(next.honestUnlocked);
+      setHonestOn(next.honestEnabled);
+      // Drop any result card and start a fresh route in the chosen mode.
+      clearBannerTimer();
+      finishLockRef.current = false;
+      bannerOpenRef.current = false;
+      shownResultKey.current = null;
+      setResult(null);
+      engineRef.current?.refreshForMode();
+    },
+    [clearBannerTimer, picking, showHonestTip],
+  );
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -191,6 +278,7 @@ export function AlmostThereGame() {
           continueNewRoute();
           return;
         }
+        if (finishLockRef.current) return;
         triggerJump();
       }
       if (e.code === "KeyM") {
@@ -201,15 +289,6 @@ export function AlmostThereGame() {
           audio.setSfxMuted(next);
           setSfxMuted(next);
           if (!next) audio.play("coin");
-        });
-      }
-      if (e.code === "KeyN") {
-        const audio = audioRef.current;
-        if (!audio) return;
-        void audio.unlock().then(() => {
-          const next = !audio.isMusicMuted();
-          audio.setMusicMuted(next);
-          setMusicMuted(next);
         });
       }
     };
@@ -228,19 +307,23 @@ export function AlmostThereGame() {
     });
   }
 
-  function toggleMusic() {
-    const audio = audioRef.current;
-    if (!audio) return;
-    void audio.unlock().then(() => {
-      const next = !audio.isMusicMuted();
-      audio.setMusicMuted(next);
-      setMusicMuted(next);
+  function toggleWideStage() {
+    setWideStage((prev) => {
+      const next = !prev;
+      saveWideStage(next);
+      return next;
     });
   }
 
+  const roundOver =
+    snapshot?.status === "won" || snapshot?.status === "lost";
+
   return (
-    <div className="relative flex h-[100dvh] max-h-[100dvh] flex-col overflow-hidden">
-      <div className="flex shrink-0 items-center justify-between gap-3 px-4 py-3 sm:px-6">
+    <div
+      ref={shellRef}
+      className="relative flex h-[100dvh] max-h-[100dvh] flex-col overflow-hidden bg-[#0B0F19] pt-[env(safe-area-inset-top)]"
+    >
+      <div className="flex shrink-0 items-center justify-between gap-3 px-4 py-2 sm:px-6 sm:py-3">
         <Link
           href="/"
           className="text-xs uppercase tracking-[0.18em] text-muted transition hover:text-ink"
@@ -252,6 +335,36 @@ export function AlmostThereGame() {
             {snapshot ? snapshot.routeName : "Loading"}
             {mascot ? ` · ${mascot}` : ""}
           </p>
+          {honestUnlocked ? (
+            <div
+              className="flex shrink-0 overflow-hidden border border-line"
+              role="group"
+              aria-label="Play mode"
+            >
+              <button
+                type="button"
+                onClick={() => setPlayMode(false)}
+                className={`px-2 py-1 text-[10px] uppercase tracking-[0.14em] transition ${
+                  !honestOn
+                    ? "bg-accent text-white"
+                    : "text-muted hover:text-ink"
+                }`}
+              >
+                Chaos
+              </button>
+              <button
+                type="button"
+                onClick={() => setPlayMode(true)}
+                className={`px-2 py-1 text-[10px] uppercase tracking-[0.14em] transition ${
+                  honestOn
+                    ? "bg-fair text-[#0B0F19]"
+                    : "text-muted hover:text-ink"
+                }`}
+              >
+                Honest
+              </button>
+            </div>
+          ) : null}
           <button
             type="button"
             onClick={() => setPicking(true)}
@@ -268,17 +381,21 @@ export function AlmostThereGame() {
           </button>
           <button
             type="button"
-            onClick={toggleMusic}
-            className="border border-line px-2 py-1 text-[10px] uppercase tracking-[0.16em] text-muted transition hover:border-ink/40 hover:text-ink"
+            onClick={toggleWideStage}
+            className="hidden border border-line px-2 py-1 text-[10px] uppercase tracking-[0.16em] text-muted transition hover:border-ink/40 hover:text-ink sm:inline-flex"
           >
-            {musicMuted ? "Music off" : "Music on"}
+            {wideStage ? "Default size" : "Wide"}
           </button>
         </div>
       </div>
 
       <div
         ref={wrapRef}
-        className="relative mx-auto min-h-0 w-full max-w-3xl flex-1 touch-none px-2 pb-[max(0.5rem,env(safe-area-inset-bottom))] sm:px-4"
+        className={`relative mx-auto min-h-0 flex-1 touch-none pb-[max(0.5rem,env(safe-area-inset-bottom))] transition-[max-width] duration-300 ${
+          wideStage
+            ? "w-[90%] max-w-[90vw] px-0 sm:px-2"
+            : "w-full max-w-3xl px-2 sm:px-4"
+        }`}
       >
         <canvas
           ref={canvasRef}
@@ -289,7 +406,9 @@ export function AlmostThereGame() {
           type="button"
           aria-label="Jump"
           className={`absolute inset-0 z-10 cursor-pointer border-0 bg-transparent p-0 ${
-            result || picking ? "pointer-events-none" : ""
+            result || picking || showHonestTip || roundOver
+              ? "pointer-events-none"
+              : ""
           }`}
           onPointerDown={(e) => {
             e.preventDefault();
@@ -299,12 +418,19 @@ export function AlmostThereGame() {
 
         {picking ? <MascotPicker onPick={applyMascot} /> : null}
 
+        {!picking && showHonestTip ? (
+          <HonestModeTip onDismiss={() => setShowHonestTip(false)} />
+        ) : null}
+
         {result && mascot ? (
           <CongratsBanner
             result={result}
             mascot={mascot}
             gameCanvas={shareCanvas}
             onContinue={continueNewRoute}
+            honestUnlocked={honestUnlocked}
+            honestActive={honestOn}
+            onSwitchMode={setPlayMode}
           />
         ) : null}
       </div>

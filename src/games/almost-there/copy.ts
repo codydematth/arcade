@@ -8,10 +8,11 @@ import {
   nextSubline,
 } from "@/games/almost-there/roasts";
 import type { RunResult } from "@/games/almost-there/types";
-import { formatCash, getLocale, zeroCash } from "@/lib/locale";
+import { baitLineForResult } from "@/lib/career";
+import { formatCash, getLocale } from "@/lib/locale";
 
 export function eyebrowForResult(result: RunResult): string {
-  return nextEyebrow(result.won);
+  return nextEyebrow(result.won, result.progress);
 }
 
 export function roastEmojiForResult(result: RunResult): string {
@@ -20,7 +21,11 @@ export function roastEmojiForResult(result: RunResult): string {
 }
 
 export function headlineForResult(result: RunResult): string {
-  return nextHeadline(result.won, result.failReason ?? "fell");
+  return nextHeadline(
+    result.won,
+    result.failReason ?? "fell",
+    result.progress,
+  );
 }
 
 export function sublineForResult(result: RunResult): string {
@@ -36,11 +41,11 @@ export function audienceRoastForResult(result: RunResult): string {
 }
 
 export function ctaForResult(result: RunResult): string {
-  return nextCta(result.won);
+  return nextCta(result.won, result.progress);
 }
 
 export function shareTextForResult(result: RunResult): string {
-  return nextShare(result.won);
+  return nextShare(result.won, result.progress);
 }
 
 export function progressLabel(progress: number): string {
@@ -62,21 +67,18 @@ export function progressLabel(progress: number): string {
     : `${pct}% 🗑️ tutorial victim`;
 }
 
+/** Card / share bait line — career hooks, not the money wipe. */
+export function baitLabel(result: RunResult): string {
+  return baitLineForResult({
+    won: result.won,
+    progress: result.progress,
+    seed: result.seed ^ Math.floor(result.durationMs),
+  });
+}
+
+/** @deprecated Prefer baitLabel */
 export function moneyLabel(result: RunResult): string {
-  const pidgin = getLocale().dialect === "pidgin";
-  if (result.won) {
-    return pidgin
-      ? `You keep ${formatCash(result.money)} · illegal o`
-      : `Kept ${formatCash(result.money)} · illegal`;
-  }
-  if (result.moneyLost > 0) {
-    return pidgin
-      ? `You get ${formatCash(result.moneyLost)} → ${zeroCash()}`
-      : `Had ${formatCash(result.moneyLost)} → ${zeroCash()}`;
-  }
-  return pidgin
-    ? `${zeroCash()} · you break before start`
-    : `${zeroCash()} · broke on arrival`;
+  return baitLabel(result);
 }
 
 export { formatCash };

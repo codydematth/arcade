@@ -1,4 +1,5 @@
 import type { FailReason } from "@/games/almost-there/types";
+import { isHonestModeActive } from "@/lib/career";
 import { formatCash, getLocale, zeroCash } from "@/lib/locale";
 
 /**
@@ -254,6 +255,12 @@ const PIDGIN_EYEBROWS = [
   "SPIRITUAL ATTACK",
   "ALMOST ENERGY",
   "BROKE HOUR",
+  "I GO LIE FOR YOU",
+  "DEY PLAY",
+  "NA LIE!",
+  "E CHOKE",
+  "OMO SEE THIS",
+  "GBAS GBOS",
 ] as const;
 
 const PIDGIN_HEADLINES = [
@@ -287,6 +294,16 @@ const PIDGIN_HEADLINES = [
   "YOUR HIGHLIGHT NA PSA",
   "TRUST FALL GONE WRONG",
   "YOU DON OVERRATE YOURSELF",
+  "I GO LIE FOR YOUUU?",
+  "YOU FIT RUN AM?",
+  "NA WA FOR YOU O BRO",
+  "SHEY YOU DEY WHINE ME?",
+  "DEY PLAY WITH JUMP",
+  "NASO YOU LAND?",
+  "OMO YOUR HAND SHAKE",
+  "WAHALA LIKE BICYCLE",
+  "NO BE LIE — YOU FALL",
+  "E CHOKE THIS LOSS",
 ] as const;
 
 const PIDGIN_SUBS = [
@@ -315,6 +332,16 @@ const PIDGIN_SUBS = [
   "You jump with vibes, land with consequences",
   "Next time carry insurance for gravity",
   "That platform dey freelance — no loyalty",
+  "I go lie for youuuuu? You fit run am next one",
+  "Na wa for you o broooo — that landing no correct",
+  "Shey you dey whine me ni? Platform no dey joke",
+  "Dey play — that gap no be soft life",
+  "As e dey sweet chat, e dey pain your fingers",
+  "Abeg comot mouth — your jump no reach",
+  "Naso? You yarn say you go clear am",
+  "Omo mind no go touch ground after this one",
+  "Wahala be like bicycle — you just pedal enter",
+  "I go lie for you — even okada horn for this fall",
 ] as const;
 
 const PIDGIN_AUDIENCE = [
@@ -338,6 +365,10 @@ const PIDGIN_AUDIENCE = [
   "Your highlight reel just collect tax",
   "People dey laugh like say NEPA bring light",
   "Chat typing LOSS in perfect sync",
+  "Streets go quote 'I go lie for you' under this",
+  "Comment section: na wa for you o broooo",
+  "Somebody go reply 'you fit?' with tears emoji",
+  "Gbas gbos don start for your mentions",
 ] as const;
 
 const PIDGIN_CTA = [
@@ -359,6 +390,10 @@ const PIDGIN_CTA = [
   "ABEG NO QUIT YET",
   "JUMP ENTER ANOTHER SCAM",
   "MAKE WE SEE THE REMIX",
+  "YOU FIT RUN AM?",
+  "I GO LIE — TRY AM",
+  "NA WA — COME BACK",
+  "DEY PLAY? PRESS AGAIN",
 ] as const;
 
 const PIDGIN_MONEY = [
@@ -390,6 +425,9 @@ const PIDGIN_WIN_HEADLINES = [
   "WHO APPROVE THIS W?",
   "GAME DEY CONFUSED",
   "YOU DON BREAK PHYSICS",
+  "I GO LIE — YOU WIN?",
+  "E CHOKE THIS W",
+  "YOU FIT DO AM AGAIN?",
 ] as const;
 
 const PIDGIN_WIN_SUBS = [
@@ -398,6 +436,9 @@ const PIDGIN_WIN_SUBS = [
   "Admin for heaven dey reload the level",
   "You win like say e no be ragebait",
   "This one no enter the script at all",
+  "I go lie for youuu? You actually clear am",
+  "Na wa o — even Fair™ dey confuse",
+  "Shey you dey whine me? That W look illegal",
 ] as const;
 
 const PIDGIN_WIN_AUDIENCE = [
@@ -412,6 +453,61 @@ const PIDGIN_WIN_CTA = [
   "PROVE SAY E NO BE LUCK",
   "RUN THE GLITCH BACK",
   "COME COLLECT BAN",
+] as const;
+
+/** Honest Mode — skill roasts, no “platform scam” gaslight. */
+const HONEST_LOSS_EYEBROWS = [
+  "SKILL CHECK",
+  "TIMING TAX",
+  "CLEAN MISS",
+  "NO SCAM NEEDED",
+  "GAPS WON",
+  "REFLEX LEFT",
+] as const;
+
+const HONEST_LOSS_HEADLINES = [
+  "YOUR JUMP NO REACH",
+  "NA TIMING BE THIS",
+  "GAPS STILL DEY",
+  "PLATFORM NO LIE",
+  "YOU MISS AM CLEAN",
+  "HAND SHAKE LATE",
+  "SKILL ISSUE HONEST",
+  "STREAK BREAKER",
+] as const;
+
+const HONEST_LOSS_HEADLINES_EN = [
+  "PURE TIMING",
+  "GAP WINS",
+  "CLEAN MISS",
+  "NO SCAMS HERE",
+  "SKILL CHECK FAILED",
+  "STREAK BROKEN",
+  "LATE JUMP",
+  "HONEST L",
+] as const;
+
+const HONEST_WIN_EYEBROWS = [
+  "CLEAN CLEAR",
+  "SKILL ONLY",
+  "STREAK FUEL",
+  "CERTIFIED HONEST",
+] as const;
+
+const HONEST_WIN_HEADLINES = [
+  "YOU CLEAR AM CLEAN",
+  "NO SCAM ASSIST",
+  "STREAK DEY GROW",
+  "HONEST W",
+  "TIMING CORRECT",
+] as const;
+
+const HONEST_WIN_HEADLINES_EN = [
+  "CLEAN CLEAR",
+  "NO SCAM ASSIST",
+  "STREAK UP",
+  "HONEST W",
+  "TIMING LOCKED",
 ] as const;
 
 const pidginBags = {
@@ -432,41 +528,235 @@ function isPidgin(): boolean {
   return getLocale().dialect === "pidgin";
 }
 
+function isHonest(): boolean {
+  return isHonestModeActive();
+}
+
+export type ProgressBand = "early" | "mid" | "late" | "near";
+
+export function progressBand(progress: number): ProgressBand {
+  if (progress >= 0.9) return "near";
+  if (progress >= 0.7) return "late";
+  if (progress >= 0.4) return "mid";
+  return "early";
+}
+
 export function nextEmoji(): string {
   return take(bags.emoji, EMOJI);
 }
 
-export function nextEyebrow(won: boolean): string {
+function pickLine(pool: readonly string[]): string {
+  return pool[Math.floor(Math.random() * pool.length)]!;
+}
+
+/** Soft-sounding ragebait when the finish line was right there. */
+const NEAR_EYEBROWS_PIDGIN = [
+  "NA SMALL REMAIN",
+  "FINISH LINE TAX",
+  "YOU SEE AM",
+  "ALMOST COLLECT",
+  "WHY NOW?",
+  "FLAG DEY LAUGH",
+] as const;
+
+const NEAR_EYEBROWS_EN = [
+  "SO CLOSE IT HURTS",
+  "FINISH LINE TAX",
+  "ONE PAD LEFT",
+  "CRIMINAL NEAR-MISS",
+  "WHY THERE?",
+  "FLAG WAS WATCHING",
+] as const;
+
+const NEAR_HEADLINES_PIDGIN = [
+  "OMO YOU TRY O",
+  "NA SMALL REMAIN",
+  "WATIN YOU DEY THINK?",
+  "YOU SEE THE FLAG?",
+  "WHY YOU FALL NOW?",
+  "I BELIEVE YOU… ALMOST",
+  "FINISH LINE DON MOCK YOU",
+  "SMALL REMAIN MAKE YOU WIN",
+  "YOU ALMOST COLLECT AM",
+  "NA YOUR HAND BETRAY YOU",
+] as const;
+
+const NEAR_HEADLINES_EN = [
+  "YOU WERE RIGHT THERE",
+  "ONE MORE JUMP",
+  "THE FLAG SAW YOU",
+  "WHY FALL THERE?",
+  "SO CLOSE IT'S ILLEGAL",
+  "ALMOST DOESN'T COUNT",
+  "FINISH LINE SAID NOPE",
+  "YOUR HANDS QUIT FIRST",
+  "THAT WAS THE LAST GAP",
+  "EMOTIONAL DAMAGE",
+] as const;
+
+const NEAR_CTA_PIDGIN = [
+  "I BELIEVE YOU GO RUN AM",
+  "TRY AGAIN — NA SMALL",
+  "COME COLLECT AM ABEG",
+  "RUN AM BACK SHARP",
+  "NO QUIT FOR HERE",
+] as const;
+
+const NEAR_CTA_EN = [
+  "I BELIEVE IN YOU — RETRY",
+  "ONE MORE — YOU GOT THIS",
+  "GO FINISH IT",
+  "RUN IT BACK",
+  "DON'T LEAVE IT HERE",
+] as const;
+
+const LATE_EYEBROWS_PIDGIN = [
+  "LATE GAME PAIN",
+  "ALMOST ENERGY",
+  "E PAIN YOU",
+  "CLOSE BUT NO",
+] as const;
+
+const LATE_EYEBROWS_EN = [
+  "LATE GAME PAIN",
+  "ALMOST ENERGY",
+  "CLOSE BUT NO",
+  "HURTS DIFFERENT",
+] as const;
+
+const LATE_HEADLINES_PIDGIN = [
+  "YOU DEY CLOSE O",
+  "E PAIN FOR REAL",
+  "ALMOST NO BE FINISH",
+  "LATE GAME DON COLLECT YOU",
+  "YOUR HOPE REACH FAR",
+  "NA WA — YOU ALMOST",
+] as const;
+
+const LATE_HEADLINES_EN = [
+  "LATE GAME BETRAYAL",
+  "HOPE GOT YOU KILLED",
+  "ALMOST IS A TRAP",
+  "SO FAR FOR THIS?",
+  "PAIN WITH PROGRESS",
+  "CLOSE ENOUGH TO HURT",
+] as const;
+
+const MID_HEADLINES_PIDGIN = [
+  "MID WAHALA",
+  "YOU STILL DEY LEARN",
+  "HALFWAY SHAME",
+  "NO BE FINISH LINE",
+  "YOUR CONFIDENCE EXPIRE",
+] as const;
+
+const MID_HEADLINES_EN = [
+  "MID-RUN COLLAPSE",
+  "HALFWAY SHAME",
+  "TUTORIAL ENERGY STILL",
+  "CONFIDENCE EXPIRED",
+  "NOT EVEN CLOSE ENOUGH",
+] as const;
+
+const EARLY_HEADLINES_PIDGIN = [
+  "YOU FALL EARLY O",
+  "TUTORIAL STILL DEY?",
+  "START PAD OWN YOU",
+  "WHO SEND YOU?",
+  "SOFT OPENING LOSS",
+] as const;
+
+const EARLY_HEADLINES_EN = [
+  "EARLY EXIT",
+  "TUTORIAL VICTIM",
+  "OPENING ACT FLOP",
+  "WHO SENT YOU?",
+  "SOFT LAUNCH LOSS",
+] as const;
+
+export function nextEyebrow(won: boolean, progress = 0): string {
   if (won) {
+    if (isHonest()) return pickLine(HONEST_WIN_EYEBROWS);
     return isPidgin()
       ? take(pidginBags.winEyebrow, PIDGIN_WIN_EYEBROWS)
       : take(bags.winEyebrow, WIN_EYEBROWS);
   }
+
+  const band = progressBand(progress);
+  const pct = Math.round(progress * 100);
+
+  if (band === "near") {
+    // Mix % stamp with emotional eyebrow
+    if (Math.random() > 0.45) {
+      return isPidgin() ? `${pct}% PAIN` : `${pct}% CLOSE`;
+    }
+    return isPidgin()
+      ? pickLine(NEAR_EYEBROWS_PIDGIN)
+      : pickLine(NEAR_EYEBROWS_EN);
+  }
+  if (band === "late") {
+    return isPidgin()
+      ? pickLine(LATE_EYEBROWS_PIDGIN)
+      : pickLine(LATE_EYEBROWS_EN);
+  }
+  if (isHonest()) return pickLine(HONEST_LOSS_EYEBROWS);
   if (isPidgin()) return take(pidginBags.eyebrow, PIDGIN_EYEBROWS);
   return take(bags.eyebrow, EYEBROWS);
 }
 
-export function nextHeadline(won: boolean, reason: FailReason): string {
+export function nextHeadline(
+  won: boolean,
+  reason: FailReason,
+  progress = 0,
+): string {
   if (won) {
+    if (isHonest()) {
+      return isPidgin()
+        ? pickLine(HONEST_WIN_HEADLINES)
+        : pickLine(HONEST_WIN_HEADLINES_EN);
+    }
     return isPidgin()
       ? take(pidginBags.winHeadline, PIDGIN_WIN_HEADLINES)
       : `${take(bags.adj, ADJECTIVES)} WIN`;
   }
-  void reason;
-  if (isPidgin()) {
-    return take(pidginBags.headline, PIDGIN_HEADLINES);
+
+  const band = progressBand(progress);
+
+  // Near-finish emotion wins over generic / fail-reason roast.
+  if (band === "near") {
+    return isPidgin()
+      ? pickLine(NEAR_HEADLINES_PIDGIN)
+      : pickLine(NEAR_HEADLINES_EN);
   }
-  const pattern = Math.floor(Math.random() * 4);
-  switch (pattern) {
-    case 0:
-      return `${take(bags.adj, ADJECTIVES)} ${take(bags.noun, NOUNS)}`;
-    case 1:
-      return `${take(bags.verb, VERBS)} ${take(bags.target, TARGETS)}`;
-    case 2:
-      return `${take(bags.noun, NOUNS)}`;
-    default:
-      return `${take(bags.adj, ADJECTIVES)} ${take(bags.verb, VERBS)}`;
+  if (band === "late") {
+    return isPidgin()
+      ? pickLine(LATE_HEADLINES_PIDGIN)
+      : pickLine(LATE_HEADLINES_EN);
   }
+  if (band === "mid") {
+    if (isHonest()) {
+      return isPidgin()
+        ? pickLine(HONEST_LOSS_HEADLINES)
+        : pickLine(HONEST_LOSS_HEADLINES_EN);
+    }
+    return isPidgin()
+      ? pickLine(MID_HEADLINES_PIDGIN)
+      : pickLine(MID_HEADLINES_EN);
+  }
+
+  // Early: fail-reason flavor still useful on Fair™ scams.
+  if (!isHonest() && (reason === "fake" || reason === "vanish" || reason === "crumble")) {
+    if (isPidgin()) return take(pidginBags.headline, PIDGIN_HEADLINES);
+    return `${take(bags.adj, ADJECTIVES)} ${take(bags.noun, NOUNS)}`;
+  }
+  if (isHonest()) {
+    return isPidgin()
+      ? pickLine(HONEST_LOSS_HEADLINES)
+      : pickLine(HONEST_LOSS_HEADLINES_EN);
+  }
+  return isPidgin()
+    ? pickLine(EARLY_HEADLINES_PIDGIN)
+    : pickLine(EARLY_HEADLINES_EN);
 }
 
 export function nextSubline(
@@ -517,11 +807,26 @@ export function nextAudience(won: boolean): string {
   return `${nextEmoji()} ${take(bags.chat, CHAT)}`;
 }
 
-export function nextCta(won: boolean): string {
+export function nextCta(won: boolean, progress = 0): string {
   if (won) {
+    if (isHonest()) {
+      return `${nextEmoji()} STACK THE STREAK`;
+    }
     return isPidgin()
       ? `${nextEmoji()} ${take(pidginBags.winCta, PIDGIN_WIN_CTA)}`
       : `${nextEmoji()} DO IT AGAIN`;
+  }
+
+  const band = progressBand(progress);
+  if (band === "near") {
+    return `${nextEmoji()} ${
+      isPidgin() ? pickLine(NEAR_CTA_PIDGIN) : pickLine(NEAR_CTA_EN)
+    }`;
+  }
+  if (isHonest()) {
+    return isPidgin()
+      ? `${nextEmoji()} RUN AM BACK CLEAN`
+      : `${nextEmoji()} RUN IT BACK CLEAN`;
   }
   if (isPidgin()) {
     return `${nextEmoji()} ${take(pidginBags.cta, PIDGIN_CTA)}`;
@@ -529,11 +834,29 @@ export function nextCta(won: boolean): string {
   return `${nextEmoji()} ${take(bags.cta, CTA)}`;
 }
 
-export function nextShare(won: boolean): string {
+export function nextShare(won: boolean, progress = 0): string {
+  const pct = Math.round(progress * 100);
   if (won) {
+    if (isHonest()) {
+      return isPidgin()
+        ? `${nextEmoji()} Honest Mode clear for Almost There. No scam assist.`
+        : `${nextEmoji()} Honest Mode clear on Almost There. No scam assist.`;
+    }
     return isPidgin()
       ? `${nextEmoji()} I beat Almost There. Ban me abeg.`
       : `${nextEmoji()} I beat Almost There. Ban me.`;
+  }
+
+  if (progressBand(progress) === "near") {
+    return isPidgin()
+      ? `${nextEmoji()} Almost There — ${pct}%. Na small remain make I win. Watin I dey think?`
+      : `${nextEmoji()} Almost There — ${pct}%. I was right there. Emotional damage.`;
+  }
+
+  if (isHonest()) {
+    return isPidgin()
+      ? `${nextEmoji()} Honest Mode still collect me — na skill this time`
+      : `${nextEmoji()} Honest Mode got me — pure skill miss`;
   }
   if (isPidgin()) {
     return `${nextEmoji()} this "fair" game just collect my loss for Naija`;

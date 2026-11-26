@@ -12,8 +12,8 @@ export default function HomePage() {
   const rest = GAMES.filter((g) => g.slug !== featured?.slug);
 
   return (
-    <ArcadeShell>
-      <main className="mx-auto flex w-full max-w-5xl flex-1 flex-col px-4 pb-16 pt-6 sm:px-6 sm:pt-10">
+    <ArcadeShell showSupport>
+      <main className="mx-auto flex w-full max-w-5xl flex-1 flex-col px-4 pb-10 pt-6 sm:px-6 sm:pt-10">
         <section className="animate-float-in relative overflow-hidden border border-line bg-bg-elevated px-5 py-10 sm:px-10 sm:py-14">
           <div
             aria-hidden

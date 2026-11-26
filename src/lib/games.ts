@@ -12,6 +12,13 @@ export type ArcadeGame = {
 export const ARCADE_NAME = "Almost Fair";
 export const ARCADE_TAGLINE = "Totally fair games. We swear.";
 export const ARCADE_URL = "https://games.matthiasamire.com";
+export const ARCADE_DESCRIPTION =
+  "Lightweight ragebait web games made for short clips. Play Almost There, film the near-miss, share the roast — games.matthiasamire.com.";
+/** Update if your Buy Me a Coffee handle differs. */
+export const BUY_ME_A_COFFEE_URL = "https://www.buymeacoffee.com/codydematth";
+export const CREATOR_URL = "https://matthiasamire.com";
+export const CREATOR_NAME = "Matthias Amire";
+export const GITHUB_URL = "https://github.com/codydematth/arcade";
 
 export const GAMES: ArcadeGame[] = [
   {

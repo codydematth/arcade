@@ -1,9 +1,16 @@
+import {
+  stickerCanvasColor,
+  type RoastSticker,
+} from "@/lib/stickers";
+
 export type RoastCardInput = {
   gameCanvas: HTMLCanvasElement;
   eyebrow: string;
   headline: string;
-  moneyLine: string;
+  /** Optional — omitted so the roast stays headline-first. */
+  moneyLine?: string;
   mascotLabel: string;
+  sticker?: RoastSticker;
   drawMascot: (
     ctx: CanvasRenderingContext2D,
     x: number,
@@ -149,9 +156,34 @@ export async function renderRoastCard(input: RoastCardInput): Promise<Blob> {
   ctx.drawImage(src, dx, dy, dw, dh);
   ctx.restore();
 
-  // Lean roast strip
-  const panelY = 860;
-  const panelH = 400;
+  if (input.sticker) {
+    const color = stickerCanvasColor(input.sticker.tone);
+    ctx.save();
+    ctx.translate(frameX + frameW - 132, frameY + 78);
+    ctx.rotate((input.sticker.rotate * Math.PI) / 180);
+    ctx.font = "800 34px system-ui, sans-serif";
+    const label = input.sticker.label;
+    const tw = ctx.measureText(label).width;
+    const padX = 18;
+    const w = tw + padX * 2;
+    const h = 48;
+    ctx.fillStyle = "rgba(11, 15, 25, 0.88)";
+    ctx.fillRect(-w / 2, -h / 2, w, h);
+    ctx.setLineDash([7, 5]);
+    ctx.strokeStyle = color;
+    ctx.lineWidth = 4;
+    ctx.strokeRect(-w / 2, -h / 2, w, h);
+    ctx.setLineDash([]);
+    ctx.fillStyle = color;
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    ctx.fillText(label, 0, 1);
+    ctx.restore();
+  }
+
+  // Lean roast strip — headline only (no green bait line)
+  const panelY = 900;
+  const panelH = 340;
   const padX = 110;
   const textW = width - padX * 2;
   ctx.fillStyle = "rgba(19, 25, 38, 0.96)";
@@ -163,32 +195,27 @@ export async function renderRoastCard(input: RoastCardInput): Promise<Blob> {
   ctx.font = "700 24px system-ui, sans-serif";
   ctx.fillText(input.eyebrow.toUpperCase(), padX, panelY + 52);
 
-  input.drawMascot(ctx, width - 220, panelY + 70, 120);
+  input.drawMascot(ctx, width - 220, panelY + 55, 110);
 
   const headlineSize = fitFont(
     ctx,
     input.headline,
     textW - 140,
-    56,
-    32,
+    58,
+    34,
     "800",
   );
   ctx.fillStyle = "#F8FAFC";
   ctx.font = `800 ${headlineSize}px system-ui, sans-serif`;
-  const afterHeadline = wrapText(
+  wrapText(
     ctx,
     input.headline,
     padX,
-    panelY + 120,
+    panelY + 118,
     textW - 140,
     headlineSize + 8,
     2,
   );
-
-  const moneySize = fitFont(ctx, input.moneyLine, textW, 36, 24, "800");
-  ctx.fillStyle = "#10B981";
-  ctx.font = `800 ${moneySize}px system-ui, sans-serif`;
-  wrapText(ctx, input.moneyLine, padX, afterHeadline + 28, textW, moneySize + 6, 2);
 
   ctx.fillStyle = "rgba(248,250,252,0.35)";
   ctx.font = "700 22px system-ui, sans-serif";

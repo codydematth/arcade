@@ -17,8 +17,13 @@ import type {
   RouteDef,
   RunResult,
 } from "@/games/almost-there/types";
+import {
+  getCareer,
+  honestProgressLabel,
+  isHonestModeActive,
+  recordRun,
+} from "@/lib/career";
 import { formatCash, getLocale, zeroCash } from "@/lib/locale";
-import { getLossesToday, recordLossToday } from "@/lib/streak";
 
 type RuntimePlatform = PlatformDef & {
   opacity: number;
@@ -72,6 +77,7 @@ const MONEY_PER_PAD = 85;
 export type AlmostThereEngine = {
   start: (seed?: number) => void;
   retryNewRoute: () => void;
+  refreshForMode: () => void;
   jump: () => void;
   setMascot: (mascot: MascotId) => void;
   resize: (width: number, height: number) => void;
@@ -86,11 +92,15 @@ export function createAlmostThereEngine(
   options: EngineOptions = {},
 ): AlmostThereEngine {
   const demo = Boolean(options.demo);
+  function routeOptions() {
+    return { honest: !demo && isHonestModeActive() };
+  }
   let status: EngineStatus = "ready";
   let routeNumber = 1;
   let route: RouteDef = generateRoute(
     options.seed ?? createSeed(),
     routeNumber,
+    routeOptions(),
   );
   let money = 0;
   let platformsCleared = 0;
@@ -167,8 +177,66 @@ export function createAlmostThereEngine(
     }
   }
 
-  function floatText(text: string, x: number, y: number, color: string) {
-    floaters.push({ text, x, y, life: 1.1, color });
+  function floatText(
+    text: string,
+    x: number,
+    y: number,
+    color: string,
+    life = 1.1,
+  ) {
+    floaters.push({ text, x, y, life, color });
+  }
+
+  function finishReaction(won: boolean, reason?: FailReason): string {
+    const pidgin = getLocale().dialect === "pidgin";
+    const honest = isHonestModeActive();
+    const seed = route.seed ^ Math.floor(performance.now());
+    const pct = Math.round(progress() * 100);
+    if (won) {
+      const wins = honest
+        ? pidgin
+          ? ["✅ CLEAN W", "🐐 HONEST W", "🔥 STREAK UP", "😮 E CHOKE", "💚 NO SCAM"]
+          : ["✅ CLEAN W", "🐐 HONEST W", "🔥 STREAK UP", "😮 NICE", "💚 NO SCAM"]
+        : pidgin
+          ? ["🤯 WHAT?!", "🐐 ILLEGAL W", "💀 WHO LET YOU", "🔥 NA SCAM W", "😮 E CHOKE"]
+          : ["🤯 WHAT?!", "🐐 ILLEGAL W", "💀 PATCH THIS", "🔥 HOW?", "😮 NO WAY"];
+      return wins[Math.abs(seed) % wins.length]!;
+    }
+    if (pct >= 90) {
+      const near = pidgin
+        ? ["😭 NA SMALL", "🫠 YOU SEE AM", "💀 WHY NOW", "😬 ALMOST", `📉 ${pct}%`]
+        : ["😭 SO CLOSE", "🫠 ONE LEFT", "💀 WHY THERE", "😬 ALMOST", `📉 ${pct}%`];
+      return near[Math.abs(seed) % near.length]!;
+    }
+    if (pct >= 70) {
+      const late = pidgin
+        ? ["🔥 E PAIN", "😭 LATE GAME", "🫠 YOU DEY CLOSE", `📉 ${pct}%`]
+        : ["🔥 HURTS", "😭 LATE GAME", "🫠 SO FAR", `📉 ${pct}%`];
+      return late[Math.abs(seed) % late.length]!;
+    }
+    if (honest) {
+      const honestLoss = pidgin
+        ? ["😬 TIMING", "💀 GAP WIN", "🫠 CLEAN MISS", "📉 HAND LATE", "😭 NA SKILL"]
+        : ["😬 TIMING", "💀 GAP WINS", "🫠 CLEAN MISS", "📉 LATE", "😭 SKILL"];
+      return honestLoss[Math.abs(seed) % honestLoss.length]!;
+    }
+    const byReason: Record<FailReason, readonly string[]> = pidgin
+      ? {
+          fell: ["💀 YOU FALL", "😭 NA WA O", "🫠 BROKE", "🤡 NO MONEY", "📉 FLOOR OWN YOU"],
+          fake: ["🤡 FAKE PAD", "💀 LORI IRO", "😭 PLATFORM LIE", "🫠 DEY PLAY", "🗑️ SCAM BLOCK"],
+          vanish: ["👻 GHOST PAD", "💀 E VANISH", "😭 WHERE E GO", "🫠 NO LANDING", "📉 VOID COLLECT"],
+          crumble: ["🧱 PAD CRUMBLE", "💀 TRUST TAX", "😭 E BREAK", "🫠 SOFT FLOOR", "🗑️ NO LEG"],
+          timeout: ["⏰ TIME UP", "🥱 TOO SLOW", "💀 AFK LOSS", "🫠 LAG HAND", "📉 REFLEX LEAVE"],
+        }
+      : {
+          fell: ["💀 YOU FALL", "😭 BROKE", "🫠 ALMOST", "🤡 SKILL ISSUE", "📉 NO MONEY"],
+          fake: ["🤡 FAKE PAD", "💀 LIAR BLOCK", "😭 TRUST FAIL", "🫠 SCAM", "🗑️ NOT REAL"],
+          vanish: ["👻 GHOSTED", "💀 VANISHED", "😭 WHERE?", "🫠 NO PAD", "📉 VOID"],
+          crumble: ["🧱 CRUMBLED", "💀 TRUST TAX", "😭 BROKE PAD", "🫠 SOFT", "🗑️ GONE"],
+          timeout: ["⏰ TOO SLOW", "🥱 TIMEOUT", "💀 AFK", "🫠 LATE", "📉 SLEEP"],
+        };
+    const pool = byReason[reason ?? "fell"];
+    return pool[Math.abs(seed) % pool.length]!;
   }
 
   function progress(): number {
@@ -201,18 +269,20 @@ export function createAlmostThereEngine(
     if (!won) {
       money = 0;
       wipeFlash = 1;
-      if (!demo) {
-        lossesToday = recordLossToday();
-      }
       fairLie = 37;
       floatText(
         `${formatCash(peak)} → ${zeroCash()}`,
         player.x - 10,
         player.y - 28,
         "#6366F1",
+        1.35,
       );
     } else {
       fairLie = 98;
+    }
+    if (!demo) {
+      const career = recordRun({ won, progress: progress() });
+      lossesToday = career.lossesToday;
     }
     result = {
       won,
@@ -234,12 +304,12 @@ export function createAlmostThereEngine(
       won ? "#10B981" : "#6366F1",
       won ? 18 : 22,
     );
-    const pidgin = getLocale().dialect === "pidgin";
     floatText(
-      won ? "WHAT?!" : pidgin ? "NO MONEY!" : "BROKE!",
+      finishReaction(won, reason),
       player.x,
       player.y - 48,
       won ? "#10B981" : "#6366F1",
+      1.45,
     );
     emit(won ? "win" : "die");
   }
@@ -264,32 +334,73 @@ export function createAlmostThereEngine(
 
   function start(seed?: number) {
     if (seed !== undefined) {
-      route = generateRoute(seed, routeNumber);
+      route = generateRoute(seed, routeNumber, routeOptions());
     } else if (status === "ready") {
-      // keep preview route
+      // keep preview route — refresh under current honest flag
+      route = generateRoute(route.seed, routeNumber, routeOptions());
     } else {
-      route = generateRoute(createSeed(), routeNumber);
+      route = generateRoute(createSeed(), routeNumber, routeOptions());
     }
     loadRoute(route);
     status = "playing";
     startedAt = performance.now();
-    lossesToday = getLossesToday();
-    fairLie = 98;
-    toastUntil = startedAt + 2200;
+    lossesToday = getCareer().lossesToday;
+    fairLie = isHonestModeActive() ? 100 : 98;
+    const pidginStart = getLocale().dialect === "pidgin";
+    if (isHonestModeActive()) {
+      toast = pidginStart
+        ? "Honest Mode · gaps still dey, platforms no lie"
+        : "Honest Mode · skill only. No scams.";
+      toastUntil = startedAt + 2800;
+    } else {
+      toastUntil = startedAt + 2200;
+    }
     emit("start");
     // Start-tap should hop into the run, not stand still.
     tryJump(true);
   }
 
+  function beginPlayingToast() {
+    const pidgin = getLocale().dialect === "pidgin";
+    if (isHonestModeActive()) {
+      fairLie = 100;
+      toast = pidgin
+        ? `Honest · ${route.name}`
+        : `Honest · ${route.name}`;
+      toastUntil = startedAt + 2600;
+      return;
+    }
+    fairLie = 98;
+    toast = `New route · ${route.name}`;
+    toastUntil = startedAt + 2000;
+  }
+
   function retryNewRoute() {
     routeNumber += 1;
-    const generated = nextRoute(route.seed, routeNumber);
+    const generated = nextRoute(route.seed, routeNumber, routeOptions());
     loadRoute(generated);
     status = "playing";
     startedAt = performance.now();
-    toast = `New route · ${route.name}`;
-    toastUntil = startedAt + 2000;
+    beginPlayingToast();
     emit("start");
+  }
+
+  /** After Fair™ / Honest toggle — fresh route in the new ruleset. */
+  function refreshForMode() {
+    routeNumber += 1;
+    const generated = nextRoute(route.seed, routeNumber, routeOptions());
+    loadRoute(generated);
+    if (status === "playing" || status === "won" || status === "lost") {
+      status = "playing";
+      startedAt = performance.now();
+      beginPlayingToast();
+      emit("start");
+      return;
+    }
+    status = "ready";
+    fairLie = isHonestModeActive() ? 100 : 98;
+    toast = route.hint;
+    toastUntil = 0;
   }
 
   function tryJump(force = false) {
@@ -543,15 +654,24 @@ export function createAlmostThereEngine(
     const { s } = worldScale();
     ctx.clearRect(0, 0, w, h);
 
+    const honestLook = !demo && isHonestModeActive();
     const grad = ctx.createLinearGradient(0, 0, 0, h);
-    grad.addColorStop(0, "#1c2533");
-    grad.addColorStop(0.55, "#0B0F19");
-    grad.addColorStop(1, "#0b0f14");
+    if (honestLook) {
+      grad.addColorStop(0, "#143028");
+      grad.addColorStop(0.55, "#0B0F19");
+      grad.addColorStop(1, "#0a1412");
+    } else {
+      grad.addColorStop(0, "#1c2533");
+      grad.addColorStop(0.55, "#0B0F19");
+      grad.addColorStop(1, "#0b0f14");
+    }
     ctx.fillStyle = grad;
     ctx.fillRect(0, 0, w, h);
 
     // Moving grid for "dynamic" feel
-    ctx.strokeStyle = "rgba(248,250,252,0.04)";
+    ctx.strokeStyle = honestLook
+      ? "rgba(16,185,129,0.06)"
+      : "rgba(248,250,252,0.04)";
     ctx.lineWidth = 1;
     const grid = 48;
     const offset = -((cameraX * 0.5) % grid);
@@ -562,7 +682,9 @@ export function createAlmostThereEngine(
       ctx.stroke();
     }
 
-    ctx.fillStyle = "rgba(99, 102, 241, 0.06)";
+    ctx.fillStyle = honestLook
+      ? "rgba(16, 185, 129, 0.07)"
+      : "rgba(99, 102, 241, 0.06)";
     for (let i = 0; i < 8; i++) {
       const hx = ((i * 160 - cameraX * 0.25) % (w + 220)) - 60;
       const hy = h * 0.7 + Math.sin(bob + i) * 6;
@@ -587,9 +709,13 @@ export function createAlmostThereEngine(
       } else if (p.kind === "crumble") {
         ctx.fillStyle = p.crumbleAt ? "#818CF8" : "#818CF8";
       } else {
-        ctx.fillStyle = "#10B981";
+        ctx.fillStyle = honestLook ? "#34D399" : "#10B981";
       }
       ctx.fillRect(a.x, a.y, pw, ph);
+      if (honestLook && p.kind === "solid") {
+        ctx.fillStyle = "rgba(248, 250, 252, 0.35)";
+        ctx.fillRect(a.x, a.y, pw, Math.max(2, 3 * s));
+      }
       ctx.fillStyle = "rgba(16, 19, 26, 0.28)";
       ctx.fillRect(a.x + 3, a.y + 3, Math.max(0, pw - 6), 7);
       ctx.globalAlpha = 1;
@@ -598,7 +724,7 @@ export function createAlmostThereEngine(
     const goal = worldToScreen(route.goalX, route.goalY);
     ctx.fillStyle = "#F8FAFC";
     ctx.fillRect(goal.x, goal.y, 6 * s, 90 * s);
-    ctx.fillStyle = "#6366F1";
+    ctx.fillStyle = honestLook ? "#10B981" : "#6366F1";
     ctx.beginPath();
     ctx.moveTo(goal.x + 6 * s, goal.y + Math.sin(bob * 6) * 2);
     ctx.lineTo(goal.x + 52 * s, goal.y + 16 * s);
@@ -617,7 +743,8 @@ export function createAlmostThereEngine(
       const sp = worldToScreen(f.x, f.y);
       ctx.globalAlpha = Math.max(0, f.life);
       ctx.fillStyle = f.color;
-      ctx.font = `800 ${Math.round(16 * Math.max(1, s))}px system-ui, sans-serif`;
+      // system-ui first so +₦ / +$ pad pops keep normal metrics; emoji fonts are fallback only.
+      ctx.font = `800 ${Math.round(16 * Math.max(1, s))}px system-ui, "Apple Color Emoji", "Segoe UI Emoji", "Noto Color Emoji", sans-serif`;
       ctx.fillText(f.text, sp.x, sp.y);
     }
     ctx.globalAlpha = 1;
@@ -648,22 +775,14 @@ export function createAlmostThereEngine(
       mood,
     });
 
-    // Speed lines while airborne
-    if (status === "playing" && !player.onGround) {
-      ctx.strokeStyle = "rgba(246,239,228,0.15)";
-      for (let i = 0; i < 4; i++) {
-        const y = pl.y + 6 + i * 8;
-        ctx.beginPath();
-        ctx.moveTo(pl.x - 18 - i * 10, y);
-        ctx.lineTo(pl.x - 4, y);
-        ctx.stroke();
-      }
-    }
-
-    // Live fairness lie — drifts with progress, crashes on loss.
+    // Fair™ gaslights. Honest Mode locks the truth meter.
     if (status === "playing") {
-      const target = Math.min(99, Math.round(72 + progress() * 26));
-      fairLie += (target - fairLie) * 0.08;
+      if (honestLook) {
+        fairLie += (100 - fairLie) * 0.2;
+      } else {
+        const target = Math.min(99, Math.round(72 + progress() * 26));
+        fairLie += (target - fairLie) * 0.08;
+      }
     }
 
     ctx.fillStyle = "rgba(246, 239, 228, 0.92)";
@@ -683,12 +802,17 @@ export function createAlmostThereEngine(
     const fairW = Math.min(160, w * 0.38);
     ctx.fillStyle = "rgba(246, 239, 228, 0.1)";
     ctx.fillRect(16, 56, fairW, 5);
-    ctx.fillStyle = status === "lost" ? "#6366F1" : "#10B981";
+    ctx.fillStyle =
+      status === "lost" && !honestLook
+        ? "#6366F1"
+        : "#10B981";
     ctx.fillRect(16, 56, fairW * (Math.max(8, fairLie) / 100), 5);
     ctx.fillStyle = "#94A3B8";
     ctx.font = `600 ${Math.round(9 * Math.max(1, s))}px system-ui, sans-serif`;
     ctx.fillText(
-      `Fair™ ${Math.round(fairLie)}%`,
+      honestLook
+        ? `Honest ${Math.round(fairLie)}%`
+        : `Fair™ ${Math.round(fairLie)}%`,
       16 + fairW + 8,
       61,
     );
@@ -702,17 +826,15 @@ export function createAlmostThereEngine(
     ctx.fillText(cashLabel, cashX, 34);
     ctx.font = `600 ${Math.round(11 * Math.max(1, s))}px system-ui, sans-serif`;
     ctx.fillStyle = "#94A3B8";
+    const honestLabel = demo ? "" : honestProgressLabel();
     const streakLabel =
       lossesToday > 0
         ? `${lossesToday} loss${lossesToday === 1 ? "" : "es"} today`
         : `${platformsCleared} pads · ${Math.round(currentSpeed())} spd`;
     ctx.fillText(streakLabel, Math.max(16, cashX - 4), 52);
-    if (lossesToday > 0) {
-      ctx.fillText(
-        `${platformsCleared} pads · ${Math.round(currentSpeed())} spd`,
-        Math.max(16, cashX - 4),
-        66,
-      );
+    if (!demo) {
+      ctx.fillStyle = isHonestModeActive() ? "#10B981" : "#818CF8";
+      ctx.fillText(honestLabel, Math.max(16, cashX - 4), 66);
     }
 
     if (status === "ready" && !demo) {
@@ -730,6 +852,8 @@ export function createAlmostThereEngine(
         24,
         h * 0.38 + 58,
       );
+      ctx.fillStyle = "#818CF8";
+      ctx.fillText(honestProgressLabel(), 24, h * 0.38 + 82);
     }
 
     if (!demo && status === "playing" && nowSafe() < toastUntil) {
@@ -741,8 +865,8 @@ export function createAlmostThereEngine(
     }
   }
 
-  // Warm boot streak for HUD before first run.
-  lossesToday = typeof window !== "undefined" ? getLossesToday() : 0;
+  // Warm boot career for HUD before first run.
+  lossesToday = typeof window !== "undefined" ? getCareer().lossesToday : 0;
 
   function nowSafe() {
     return performance.now();
@@ -768,6 +892,7 @@ export function createAlmostThereEngine(
   return {
     start,
     retryNewRoute,
+    refreshForMode,
     jump,
     setMascot,
     resize,
