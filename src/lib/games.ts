@@ -18,6 +18,8 @@ export const ARCADE_DESCRIPTION =
 export const BUY_ME_A_COFFEE_URL = 'https://github.com/sponsors/codydematth';
 /** Naira tips from ₦500 via Paystack. */
 export const PAYSTACK_TIP_URL = 'https://paystack.shop/pay/f1r8zncfcb';
+/** Paste into Paystack Payment Page → Redirect URL. */
+export const PAYSTACK_THANKS_URL = `${ARCADE_URL}/thanks`;
 export const CREATOR_URL = 'https://matthiasamire.com';
 export const CREATOR_NAME = 'Matthias Amire';
 export const GITHUB_URL = 'https://github.com/codydematth/arcade';
